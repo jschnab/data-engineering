@@ -10,3 +10,8 @@ engineers use.
 
 In the file `dataengineering.md`, I describe principles which guide the design
 and implementation of software which process data.
+
+A `git` crash course described in the file `git_basics.md`.
+
+The `etl` folder contains materials to learn to how to write Extract Transform
+Load (ETL) and other types of data pipelines.
