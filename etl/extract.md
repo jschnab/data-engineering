@@ -113,3 +113,14 @@ The Uniprot API looks very similar to our HTTP request above because it is a
 [REpresentational State Transfer (REST)
 API](https://en.wikipedia.org/wiki/Representational_state_transfer). The REST
 architecture defines a set of constraints to be used for creating web services.
+
+As an exercise, query the Uniprot API for entries with the following
+characteristics:
+
+* contains the word "kinase"
+* with a cross-reference to the PDB database
+* contains the gene ontology term "plasma membrane"
+* the protein sequence was obtained from human brain tissue
+
+Have a look at the help page describing [query
+fields](https://www.uniprot.org/help/query-fields).
