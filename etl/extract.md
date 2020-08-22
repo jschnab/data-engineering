@@ -53,6 +53,8 @@ the help of the `shutil` library, which provides an interface for high level
 operations on files. We open the output file in `wb` mode to write bytes.
 
 ```
+import shutil
+
 with urllib.request.urlopen(URL) as response:
     with open("diabetes.csv", "wb") as outfile:
         shutil.copyfileobj(response, outfile)
