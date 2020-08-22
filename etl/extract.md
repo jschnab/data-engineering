@@ -68,3 +68,48 @@ If you would like to learn more about this topic, read [this
 tutorial](https://docs.python.org/3/library/urllib.request.html) about
 `urllib`, where they discuss error management, authentication, the use of
 proxies, etc.
+
+The Python library [`requests`](https://requests.readthedocs.io/en/master)
+makes the task of interacting with URLs even easier than with `urllib`. If you
+have a complex task involving, say, complex error and retry management, you should definitely take a look at `requests`.
+
+## Query an Application Programming Interface (API)
+
+An [API](https://en.wikipedia.org/wiki/API) is an interface between softwares
+which defines how they can communicate (what kind of calls can be made, how to
+make them, etc). This allows us to make a request for a search query to an API
+server and get the results, all programmatically. In the following example we
+will search for proteins using the [Uniprot
+API](https://www.uniprot.org/help/api_queries).
+
+```
+from urllib import parse, request
+
+base_query = "phototropin kinase"
+organism = "avena sativa"
+query = f"{base_query} organism:{organism}"
+
+query_args = {
+    "query": query,
+    "sort": "score",
+    "format": "fasta",
+}
+encoded_args = parse.urlencode(query_args)
+url = "https://uniprot.org/uniprot/?" + encoded_args
+
+with request.urlopen(url) as response:
+    print(response.read().decode("utf-8"))
+```
+
+The process is very similar to downloading data from a URL: we build the URL
+and make a request to this URL. Our query will trigger the application hosted
+on the API server to search for results in the Uniprot database. The server
+will then send us a response containing results, if any, for our query. In
+fact, if you use `"format": "http"` in your query arguments, the server will
+return the same web page you would see if you made your search manually on the
+Uniprot website.
+
+The Uniprot API looks very similar to our HTTP request above because it is a
+[REpresentational State Transfer (REST)
+API](https://en.wikipedia.org/wiki/Representational_state_transfer). The REST
+architecture defines a set of constraints to be used for creating web services.
