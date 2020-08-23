@@ -7,6 +7,9 @@ and how to work with a simple git workflow. It is a mix of my personal
 experience and the [excellent
 tutorial](https://medium.com/@zach.gollwitzer/git-crash-course-a-simple-workflow-for-small-teams-and-startups-c491919c9f77) by Zach Gollwitzer. I'll focus on Mac and Linux, please refer to the linked tutorial for Windows.
 
+A great deal of resources for learning git is also accessible from
+[Github](https://try.github.io).
+
 ## Install and setup git
 
 On Mac, run:

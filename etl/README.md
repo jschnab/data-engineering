@@ -14,7 +14,7 @@ transform data, and finally how to load and store it in the main types of data
 stores and databases (AWS S3, relational databases, NoSQL database, etc).
 
 We'll use the Python standard library as much as possible, and indicate popular
-third party libraries which help build ETL pipelines more easily.
+third party libraries that help build ETL pipelines more easily.
 
 ## ETL versus ELT
 

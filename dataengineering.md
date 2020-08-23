@@ -2,7 +2,7 @@
 
 ## What is data engineering?
 
-Data engineering is about building software which collects, processes, stores,
+Data engineering is about building software that collects, processes, stores,
 and display data. Such software has to move data (potentially a lot of data)
 from source systems to target systems, verify data quality, transform data to server
 some purpose, and store it in a way that is secure and reliable. Data
@@ -15,15 +15,24 @@ version-controlled (e.g. manage software code using git), robust (i.e. manages
 errors such as unexpected inputs or outputs), extensible, and follows other
 good software engineering practices.
 
+Many excellent discussions about data engineering have been written and made
+accessible for free on the web. In [this
+article](https://medium.com/@richard534/getting-started-with-data-engineering-3d2e728d0c1f),
+Richard Taylor describes how data engineers are responsible for designing and
+maintaining the software and infrastructure architecture that supports
+data-driven decisions. He also describes the technical landscape that data
+engineers live in. In an
+[article](https://www.freecodecamp.org/news/the-rise-of-the-data-engineer-91be18f1e603/) that aimed at being a manifesto for data engineering, Maxime Beauchemin describes a consensual view about data engineering, its roles, the skills it requests, and its responsabilities.
+
 In this document we describe several properties that one should keep in mind
-when designing and implementing software which processes data.
+when designing and implementing software that processes data.
 
 ## Analysis reproducibility
 
-*Reproducibility* is a property of a program which allows it to be run and
+*Reproducibility* is a property of a program that allows it to be run and
 reproduce past results at any time, using the original data.
 
-Imagine you have a program which downloads data every day and saves it as an
+Imagine you have a program that downloads data every day and saves it as an
 immutable artifact, does some analysis, and saves the results. If you realize that a past result is wrong, you would like to find the original input data and reproduce the error. Once you correct your program, you would then like to correct past results by re-running the program on past data.
 
 Analysis reproducibility depends on your data to be stored as *immutable
@@ -31,7 +40,7 @@ artifacts*, and also on another property of your program called *determinism*.
 
 ## Data immutability
 
-*Immutability* is a property of data object which prevents it to be changed. Once
+*Immutability* is a property of data object that prevents it to be changed. Once
 the data value is defined, it cannot changed and will remain the same until the
 object is deleted.
 
@@ -55,23 +64,23 @@ aspect is to allow the program user to explicitly define input parameters, for
 example using function arguments, a configuration file, etc. The program should
 not accept implicit input such as system date and time.
 
-Let's take the example of a scheduled data analysis which runs at defined time
+Let's take the example of a scheduled data analysis that runs at defined time
 intervals. The program downloads data at 9AM every morning, performs some
 analysis, and saves the results in a file. The programmer should design the
 program to take the date and time as input settings (e.g. function parameters),
-and add these to the path at which files are stored. This achieves both storage
+and add these to the path where files are stored. This achieves both storage
 and program determinism, and allows the user to manually re-run the program on
 old data by manually passing the date and time.
 
 ## Program idempotency
 
-*Idempotency* is a property of programs which allows them to be run multiple
+*Idempotency* is a property of programs that allows them to be run multiple
 times without changing the result after the initial run. For example, the "on"
 button on a TV remote is idempotent: initially pressing "on" turns the TV on
 but pressing the "on" button additional times does not affect the TV state
 anymore. Likewise, the "off" button on the TV remote is idempotent.
 
-Let's take the example of an automated data processing program which downloads data and loads it into a database on a daily basis. One day, the server running the program crashes just after data loading but before the program finishes. After the server restarts, it may re-run the program on the same data since the previous run did not finish. If the program is not idempotent, it may load duplicate data into the database and lead to wrong data analysis results. In this case, there are several ways to enforce idempotency during data loading. The program could delete data corresponding to the runtime date. Another possibility is to skip the data loading step if such data is detected. The preferrable option depends on the ultimate goal of this program.
+Let's take the example of an automated data processing program that downloads data and loads it into a database on a daily basis. One day, the server running the program crashes just after data loading but before the program finishes. After the server restarts, it may re-run the program on the same data since the previous run did not finish. If the program is not idempotent, it may load duplicate data into the database and lead to wrong data analysis results. In this case, there are several ways to enforce idempotency during data loading. The program could delete data corresponding to the runtime date. Another possibility is to skip the data loading step if such data is detected. The preferrable option depends on the ultimate goal of this program.
 
 ## Data validation
 
@@ -101,7 +110,7 @@ steps depend on the specific case.
 
 Many data processing programs must run regularly, for example daily. Automating
 program runs has many benefits including fewer errors, less manual labor, etc.
-There are many systems which allow scheduling of programs. Some of the best
+There are many systems that allow scheduling of programs. Some of the best
 tools include [cron](https://en.wikipedia.org/wiki/Cron) jobs and [Apache Airflow](https://airflow.apache.org).
 
 Cron is a time-based job scheduler in Unix-based systems. Cron jobs are useful

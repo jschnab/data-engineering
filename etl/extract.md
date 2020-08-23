@@ -19,7 +19,7 @@ foundation of data transfer on the web.
 
 Let's download a CSV file from the [UC Irvine machine learning
 repository](https://archive.ics.uci.edu/ml/index.php). We'll download a CSV
-file which contains a dataset for prediction of diabetes risk.
+file that contains a dataset for prediction of diabetes risk.
 
 ```
 import urllib.request
@@ -36,7 +36,7 @@ with urllib.request.urlopen(URL) as response:
 
 HTTP is based on client requests and server responses. The function `urlopen`
 returns a response in the form of a *file-like object*, so we can call the
-method `read()` on it. We use a context manager (`with`) which will manage file
+method `read()` on it. We use a context manager (`with`) that will manage file
 opening and closing for us, even in the case of an error.
 
 The method `read()` of the response returns bytes, not a string, so we need to
@@ -60,7 +60,7 @@ with urllib.request.urlopen(URL) as response:
         shutil.copyfileobj(response, outfile)
 ```
 
-As an exercise, write a script which takes two command line arguments: a URL
+As an exercise, write a script that takes two command line arguments: a URL
 and a file name. Your script will download the URL and store it under the
 provided file name.
 
@@ -76,7 +76,7 @@ have a complex task involving, say, complex error and retry management, you shou
 ## Query an Application Programming Interface (API)
 
 An [API](https://en.wikipedia.org/wiki/API) is an interface between softwares
-which defines how they can communicate (what kind of calls can be made, how to
+that defines how they can communicate (what kind of calls can be made, how to
 make them, etc). This allows us to make a request for a search query to an API
 server and get the results, all programmatically. In the following example we
 will search for proteins using the [Uniprot
@@ -161,7 +161,7 @@ server `demo.wftpserver.com`.
 
 [SSH File Transfer
 Protocol](https://en.wikipedia.org/wiki/SSH_File_Transfer_Protocol) (SFTP) is a
-network protocol which allows file transfer via an Secure Shell (SSH)
+network protocol that allows file transfer via an Secure Shell (SSH)
 connection. File transfer via SFTP is more common than FTP thanks to its better
 security for data protection, because data sent over SFTP is encrypted.
 
@@ -220,9 +220,9 @@ pip3 install beautifulsoup4
 
 Please run the following code responsibly, and avoid putting unnecessary load
 on web servers by making a lot of requests in a short time. You may be banned
-from accessing the website. `urllib` contains a tool which helps you figure out
+from accessing the website. `urllib` contains a tool that helps you figure out
 if you are allowed to scrape a specific URL. This module, named `robotparser`,
-reads the `robots.txt` file of the website, which contains a set of rules
+reads the `robots.txt` file of the website, that contains a set of rules
 written by the website administrator and define who can scrape which pages.
 
 In the following example we will collect a list of homes for sales from the New
@@ -259,7 +259,7 @@ if robotparser.can_fetch(useragent="Python-urllib/3.6", url=FULL_URL):
 In this example, we parse the file robots.txt to see if we are allowed to parse
 a page. We use the default user agent for `urllib`. If we are allowed, we
 download the URL content and give it to the `BeautifulSoup` object along with
-the `html.parser` (which tells Beautiful Soup how to make sense of data) and
+the `html.parser` (that tells Beautiful Soup how to make sense of data) and
 retrieve a tree of Beatiful Soup objects corresponding to the HTML tags of the
 page. We then find all the links (`a` tags) and collect them in a list if the
 URL the link to matches what we are looking for. We could then use this list
@@ -275,7 +275,7 @@ may be convenient to store data in a temporary file and files in temporary
 directories, to avoid setting up files or directories when we start an
 extraction task and clean things up when we are done. The Python standard
 library contains the [`tempfile`
-module](https://docs.python.org/3/library/tempfile.html) which makes easier
+module](https://docs.python.org/3/library/tempfile.html) that makes easier
 temporary files and directories management. In the following example we
 download a file into a temporary directory. 
 
@@ -295,7 +295,7 @@ with TemporaryDirectory() as temp_dir:
             shutil.copyfileobj(response, outfile)
 ```
 
-We use a context manager for the temporary directory, which will create and destroy the directory for us automatically, even if an error occurs during file download or further
+We use a context manager for the temporary directory, that will create and destroy the directory for us automatically, even if an error occurs during file download or further
 processing. We also use the function `join` from the `os.path` module to build
 the local path where we will store our file (this is more robust than manual
 string operations).
