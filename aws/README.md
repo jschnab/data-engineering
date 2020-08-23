@@ -22,9 +22,15 @@ Create a user with administrator permissions that you will use to build AWS reso
 
 Install the AWS command-line interface by running `pip install aws-cli` and configure it according to the [documentation](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html).
 
+## IAM
+
+IAM is Identity and Access Management.
+
 We describe IAM main features and how to interact with them in [iam.md](iam.md).
 
 ## S3
+
+S3 is Simple Storage Service.
 
 We describe S3 main features and how to interact with them in [s3.md](s3.md).
 

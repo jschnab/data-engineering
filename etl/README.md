@@ -33,3 +33,8 @@ Loading raw data is becoming easier with improvements on databases, which now
 accept many data formats such as CSV, JSON (often returned by REST APIs),
 Apache Parquet, etc. In any case, raw data should be stored in an object or
 block storage before any transformation, to enforce reproducibility.
+
+## Extract
+
+We describe data extraction from various sources in the document
+[extract.md](extract.md).
