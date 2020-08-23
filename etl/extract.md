@@ -124,3 +124,44 @@ characteristics:
 
 Have a look at the help page describing [query
 fields](https://www.uniprot.org/help/query-fields).
+
+## Download data from an FTP server
+
+The [File Transfer
+Protocol](https://en.wikipedia.org/wiki/File_Transfer_Protocol) (FTP) is used to transfer files between machines on a network. Usually the client has to authenticate to the server with a username and a password, but anonymous connections can be setup.
+
+Although FTP has been often considered more performant over HTTP for
+file transfer, this may no longer be true. Read [this
+page](https://daniel.haxx.se/docs/ftp-vs-http.html) for a comparison.
+Nevertheless, many data providers distribute files via an FTP server, so it's
+important to know how to deal with it.
+
+The [`ftplib`](https://docs.python.org/3/library/ftplib.html) module is included in the Python standard library and provides the class `FTP` and other tools to interact with FTP servers. In the following example we will connect to the Wing FTP server as described
+[here](https://www.wftpserver.com/onlinedemo.htm).
+
+```
+from ftplib import FTP
+
+# connect and authenticate to the server
+with FTP(host="demo.wftpserver.com", user="demo", passwd="demo") as client:
+
+    # list directory contents, could also use client.dir()
+    client.retrlines("LIST")
+
+    # go to the 'download' directory and download a file
+    client.cwd("download")
+    with open("Spring.jpg", "wb") as f:
+        client.retrbinary("RETR Spring.jpg", f.write)
+```
+
+
+## Download data from an SFTP server
+
+[SSH File Transfer
+Protocol](https://en.wikipedia.org/wiki/SSH_File_Transfer_Protocol) (SFTP) is a
+network protocol which allows file transfer via an Secure Shell (SSH)
+connection. File transfer via SFTP is more common than FTP thanks to its better
+security for data protection, because data sent over SFTP is encrypted.
+
+The third party library [`paramiko`](docs.paramiko.org/en/stable/api/sftp.html)
+provides an interface to communicate with SFTP servers.
