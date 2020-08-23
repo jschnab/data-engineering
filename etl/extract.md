@@ -189,7 +189,8 @@ client.getcwd()
 client.listdir()
 
 # copy a file from the SFTP server to the local filesystem
-client.get("/downloads/Spring.jpg", "~/Downloads/Spring.jpg")
+# do not use tilde to shortcut your home directory, use full path
+client.get("/downloads/Spring.jpg", "/home/ubuntu/Spring.jpg")
 
 client.close()
 ```
