@@ -154,6 +154,9 @@ with FTP(host="demo.wftpserver.com", user="demo", passwd="demo") as client:
         client.retrbinary("RETR Spring.jpg", f.write)
 ```
 
+As an exercise, download all JPEG files from the `/download` folder of the FTP
+server `demo.wftpserver.com`.
+
 ## Download data from an SFTP server
 
 [SSH File Transfer
@@ -194,6 +197,12 @@ client.get("/download/Spring.jpg", "/home/ubuntu/Spring.jpg")
 
 client.close()
 ```
+
+As an exercise, download all JPEG files from the `/download` folder of the FTP
+server `demo.wftpserver.com`. Moreover, your code should download files only if
+they do not already exist in the local target directory, unless the last
+modification date of the file on the server is more recent than on the local
+directory.
 
 ## Scrape a web page for data
 
@@ -242,8 +251,9 @@ if robotparser.can_fetch(useragent="Python-urllib/3.6", url=FULL_URL):
 
     homes = []
     for a in soup.find_all("a"):
-        if a.attrs["href"].startswith("/real-estate/usa/ny"):
-            homes.append(a)
+        if a.has_attr("href"):
+            if a.attrs["href"].startswith("/real-estate/usa/ny"):
+                homes.append(a)
 ```
 
 In this example, we parse the file robots.txt to see if we are allowed to parse
@@ -254,6 +264,9 @@ retrieve a tree of Beatiful Soup objects corresponding to the HTML tags of the
 page. We then find all the links (`a` tags) and collect them in a list if the
 URL the link to matches what we are looking for. We could then use this list
 for further processing and data extraction.
+
+As an exercise, get the list of all links from Wikipedia's main page, and write
+them to a file.
 
 ## Store files in temporary directories on your local machine
 
