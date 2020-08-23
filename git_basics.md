@@ -144,3 +144,68 @@ git push origin master
 ```
 
 where "origin" is the remote name and "master" is the branch name.
+
+## Update the code in a git branch and make a merge request
+
+When you contribute to a software project which uses version control, you
+usually make code updates (new feature, bug fix, etc) in a *git branch* that is
+different from the master branch. This allows to write the code without messing
+with code that is deployed and running, which could potentially break it or
+make a bug worse.
+
+First you need to make sure your branch contains the most recent updates from
+the remote repository (e.g. Github). Here we also assume there is not
+uncommited code on your master branch, or on your current branch if different.
+We also assume that your remote is named `origin`. To pull recent updates to the
+master branch in Github, run:
+
+```
+git checkout master
+git pull origin master
+```
+
+Now you can create a branch (named "myupdate" here) from the master branch:
+
+```
+git checkout -b myupdate
+```
+
+You are now in the branch "myupdate", so when you commit changes they will be
+committed to this branch.
+
+Make the necessary code updates and push your branch to Github:
+
+```
+git push -u origin myupdate
+```
+
+We use the argument `-u` to create an upstream branch as well as pushing our
+commits to this branch.
+
+We are now in good shape to make a "pull request" in Github language. You can
+read the
+[documentation](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request)
+for details but at a high level you should:
+
+1. go to the page of your repository on Github
+2. switch to the branch you want to merge using the branch menu
+3. click on the "Pull request" button
+4. verify that the target branch is relevant, e.g. master
+5. type a title and description for the pull request
+6. click on "Create Pull Request"
+7. ask for a collaborator to review the pull request, and eventually approve it
+   and merge it to the target branch
+
+After your branch has been merge to the master branch, you should pull these
+recent changes to your local master branch.
+
+```
+git checkout master
+git pull origin master
+```
+
+You may also want to delete the merged branch:
+
+```
+git branch -d myupdate
+```

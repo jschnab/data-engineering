@@ -3,7 +3,7 @@
 ## What is data engineering?
 
 Data engineering is about building software that collects, processes, stores,
-and display data. Such software has to move data (potentially a lot of data)
+and displays data. Such software has to move data (potentially a lot of data)
 from source systems to target systems, verify data quality, transform data to server
 some purpose, and store it in a way that is secure and reliable. Data
 ultimately needs to be analyzed, so data stores often have to be connected to
@@ -22,7 +22,7 @@ Richard Taylor describes how data engineers are responsible for designing and
 maintaining the software and infrastructure architecture that supports
 data-driven decisions. He also describes the technical landscape that data
 engineers live in. In an
-[article](https://www.freecodecamp.org/news/the-rise-of-the-data-engineer-91be18f1e603/) that aimed at being a manifesto for data engineering, Maxime Beauchemin describes a consensual view about data engineering, its roles, the skills it requests, and its responsabilities.
+[article](https://www.freecodecamp.org/news/the-rise-of-the-data-engineer-91be18f1e603/) that aims at being a manifesto for data engineering, Maxime Beauchemin describes a consensual view about data engineering, its roles, the skills it requests, and its responsabilities.
 
 In this document we describe several properties that one should keep in mind
 when designing and implementing software that processes data.
