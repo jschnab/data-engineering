@@ -154,7 +154,6 @@ with FTP(host="demo.wftpserver.com", user="demo", passwd="demo") as client:
         client.retrbinary("RETR Spring.jpg", f.write)
 ```
 
-
 ## Download data from an SFTP server
 
 [SSH File Transfer
@@ -163,5 +162,34 @@ network protocol which allows file transfer via an Secure Shell (SSH)
 connection. File transfer via SFTP is more common than FTP thanks to its better
 security for data protection, because data sent over SFTP is encrypted.
 
-The third party library [`paramiko`](docs.paramiko.org/en/stable/api/sftp.html)
+The third party library [`paramiko`](docs.paramiko.org/en/stable/)
 provides an interface to communicate with SFTP servers.
+
+In the following example we will connect to the Wing SFTP server as describe
+[here](https://www.wftpserver.com/onlinedemo.htm). We will authenticate using a
+username and a password. We will see how we authenticate using an SSH key
+later.
+
+```
+import paramiko
+
+HOST = "demo.wftpserver.com"
+PORT = 2222
+USER = "demo"
+PASSWORD = "demo"
+
+transport = paramiko.Transport((HOST, PORT))
+transport.connect(username=USER, password=PASSWORD)
+client = SFTPClient.from_transport(transport)
+
+# get the current directory
+client.getcwd()
+
+# see what's in the current directory, can also provide path as argument
+client.listdir()
+
+# copy a file from the SFTP server to the local filesystem
+client.get("/downloads/Spring.jpg", "~/Downloads/Spring.jpg")
+
+client.close()
+```
