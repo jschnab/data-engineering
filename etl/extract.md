@@ -194,3 +194,95 @@ client.get("/download/Spring.jpg", "/home/ubuntu/Spring.jpg")
 
 client.close()
 ```
+
+## Scrape a web page for data
+
+Web scraping is the collection and extraction of data from web pages, mainly
+HTML documents. The [Beautiful
+Soup](https://www.crummy.com/software/BeautifulSoup/bs4/doc/) is a great help
+in this process, it can parse the HTML code into a tree of Python objects corresponding
+to HTML tags. In the following example we will use `urllib` to download HTML
+pages and use Beautiful Soup to parse them. You can install Beautiful Soup by
+running:
+
+```
+pip3 install beautifulsoup4
+```
+
+Please run the following code responsibly, and avoid putting unnecessary load
+on web servers by making a lot of requests in a short time. You may be banned
+from accessing the website. `urllib` contains a tool which helps you figure out
+if you are allowed to scrape a specific URL. This module, named `robotparser`,
+reads the `robots.txt` file of the website, which contains a set of rules
+written by the website administrator and define who can scrape which pages.
+
+In the following example we will collect a list of homes for sales from the New
+York Times website.
+
+```
+from urllib import parse
+from urllib import request
+from urllib.robotparser import RobotFileParser
+
+from bs4 import BeautifulSoup
+
+BASE_URL = "https://www.nytimes.com"
+SUFFIX_URL = "real-estate/homes-for-sale?channel=sale"
+FULL_URL = parse.urljoin(BASE_URL, SUFFIX_URL)
+
+robotparser = RobotFileParser()
+robotparser.set_url(parse.urljoin(BASE_URL, "robots.txt"))
+robotparser.read()
+
+if robotparser.can_fetch(useragent="Python-urllib/3.6", url=FULL_URL):
+    with request.urlopen(FULL_URL) as response:
+        content = response.read()
+
+    soup = BeautifulSoup(content, "html.parser")
+
+    homes = []
+    for a in soup.find_all("a"):
+        if a.attrs["href"].startswith("/real-estate/usa/ny"):
+            homes.append(a)
+```
+
+In this example, we parse the file robots.txt to see if we are allowed to parse
+a page. We use the default user agent for `urllib`. If we are allowed, we
+download the URL content and give it to the `BeautifulSoup` object along with
+the `html.parser` (which tells Beautiful Soup how to make sense of data) and
+retrieve a tree of Beatiful Soup objects corresponding to the HTML tags of the
+page. We then find all the links (`a` tags) and collect them in a list if the
+URL the link to matches what we are looking for. We could then use this list
+for further processing and data extraction.
+
+## Store files in temporary directories on your local machine
+
+In order to follow the *stateless computing* principle of data engineering, it
+may be convenient to store data in a temporary file and files in temporary
+directories, to avoid setting up files or directories when we start an
+extraction task and clean things up when we are done. The Python standard
+library contains the [`tempfile`
+module](https://docs.python.org/3/library/tempfile.html) which makes easier
+temporary files and directories management. In the following example we
+download a file into a temporary directory. 
+
+```
+import os
+import shutil
+
+from tempfile import TemporaryDirectory
+from urllib import request
+
+URL = "https://..."
+
+with TemporaryDirectory() as temp_dir:
+    with request.urlopen(URL) as response:
+        local_path = os.path.join(temp_dir, "file.ext")
+        with open(local_path, "wb") as outfile:
+            shutil.copyfileobj(response, outfile)
+```
+
+We use a context manager for the temporary directory, which will create and destroy the directory for us automatically, even if an error occurs during file download or further
+processing. We also use the function `join` from the `os.path` module to build
+the local path where we will store our file (this is more robust than manual
+string operations).
