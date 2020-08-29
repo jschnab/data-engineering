@@ -42,3 +42,10 @@ policy and *attach* it to users, groups, or roles.
 You should have a look at the [FAQ](https://aws.amazon.com/iam/faqs) to get a
 high level view of AWS IAM. For more details, please go to the [user
 guide](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html).
+
+## Exercises
+
+### Exercise 1: getting started
+
+Go through the "Getting started" guide found at [this
+page](https://docs.aws.amazon.com/IAM/latest/UserGuide/getting-started.html).
