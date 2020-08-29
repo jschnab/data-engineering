@@ -38,3 +38,7 @@ block storage before any transformation, to enforce reproducibility.
 
 We describe data extraction from various sources in the document
 [extract.md](extract.md).
+
+## Transform
+
+We describe data transformation in the document [transform.md](transform.md).
