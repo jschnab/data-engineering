@@ -110,11 +110,11 @@ with open("friends_2.csv") as f:
 
 ### Other read parameters
 
-One can specify other parameters when reading a CSV file, such as the field
-delimiter, the quote character, and the escape character.
+One can specify other parameters when reading a CSV file, such as the **field
+delimiter**, the **quote character**, and the **escape character**.
 
-Although the comma (,) is usually used for CSV files, the pipe (|) is often
-used because it's less frequent or even absent from text and pipe-separated
+Although the comma (`,`) is usually used as a delimiter for CSV files, the pipe (`|`)
+is often used because it's less frequent or even absent from text and pipe-separated
 files are less likely to be perturbed by commas in the text fields.
 
 To avoid field separation to be perturbed by commas or newline characters within text
@@ -165,7 +165,7 @@ with open("friends_4.csv") as f:
         print(row)
 ```
 
-The file `friends_5.csv` uses a backslash (\) to escape commas within text
+The file `friends_5.csv` uses a backslash (`\`) to escape commas within text
 fields while field delimiters are also commas.
 
 `friends_5.csv`
@@ -255,7 +255,7 @@ csv.register_dialect(
 )
 
 with open("myfile.csv") as f:
-    reader = csv.DictReader(f, dialect="pipes")  # use a custome dialect
+    reader = csv.DictReader(f, dialect="pipes")  # use a custom dialect
     for row in reader:
         print(row)
 ```
