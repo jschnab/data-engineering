@@ -176,6 +176,8 @@ later.
 ```
 import paramiko
 
+from paramiko.sftp_client import SFTPClient
+
 HOST = "demo.wftpserver.com"
 PORT = 2222
 USER = "demo"
