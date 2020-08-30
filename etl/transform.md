@@ -259,3 +259,31 @@ with open("myfile.csv") as f:
     for row in reader:
         print(row)
 ```
+
+### Exercises
+
+#### Exercise 1: transform data in a CSV file
+
+Download the CSV file at this [URL](https://archive.ics.uci.edu/ml/machine-learning-databases/00529/diabetes_data_upload.csv)
+and convert the data in the column named "class" ("Positive" or "Negative"),
+into 0 (negative) or 1 (positive).
+
+#### Exercise 2: store data by column
+
+Using the same file as in exercise 1, store columns as a list of values. For
+example you could use a dictionary where keys are column names and values are
+lists of data contained in each row.
+
+## pandas dataframes
+
+[`pandas`](https://pandas.pydata.org) is a popular open source Python library
+which defines data structures and functions for data processing. These include
+the *dataframe*, a spreadsheet-like data structure, and the *series*, a
+1-dimensional data structure. `pandas` functions are often designed to have
+good performance on medium-sized data sets, by operating on multiple elements
+at the same time instead of sequentially.
+
+Go through the tutorials [10 minutes to
+pandas](https://pandas.pydata.org/pandas-docs/stable/user_guide/10min.html) (it
+will probably take more than 10 minutes), and all of the tutorials listed on
+the left menu bar. These will give you a good overview of pandas capabilities.
