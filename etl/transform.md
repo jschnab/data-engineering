@@ -287,3 +287,46 @@ Go through the tutorials [10 minutes to
 pandas](https://pandas.pydata.org/pandas-docs/stable/user_guide/10min.html) (it
 will probably take more than 10 minutes), and all of the tutorials listed on
 the left menu bar. These will give you a good overview of pandas capabilities.
+
+### Exercises
+
+For these exercises, download this [CSV
+file](https://www.kaggle.com/jschnab/road-collisions) storing records of road collisions
+in Cambridge, UK.
+
+#### Exercise 1
+
+Read the file into a pandas DataFrame and specify that the column "Date"
+should be interpreted as a "date" date type.
+
+#### Exercise 2
+
+Select accidents that occured between Christmas 2013 and the following New
+Year. Display the date, time, severity, type of vehicles, location and junction
+details.
+
+#### Exercise 3
+
+Select accidents where the number of vehicles was more than 3 and severity
+"serious" or "fatal".
+
+#### Exercise 4
+
+Calculate and display the percentage of missing values per column.
+
+#### Exercise 5
+
+Drop all rows where junction details are missing.
+
+#### Exercise 6
+
+Calculate the number of vehicles involved in a collision, on average.
+
+#### Exercise 7
+
+Calculate the number of accidents in each severity class.
+
+#### Exercise 8
+
+Calculate the average number of vehicles involved in an accident for each
+severity class.
