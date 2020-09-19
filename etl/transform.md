@@ -330,3 +330,20 @@ Calculate the number of accidents in each severity class.
 
 Calculate the average number of vehicles involved in an accident for each
 severity class.
+
+#### Exercise 9
+
+Develop an ETL pipeline which downloads the [drug review
+dataset]([200~https://archive.ics.uci.edu/ml/datasets/Drug+Review+Dataset+%28Drugs.com%29)
+on the UC Davis machine learning repository, filters the reviews with a rating of 9 or 10
+and saves the results in a CSV file before uploading it to AWS S3. The data is
+provided as a ZIP archive at [this
+URL](https://archive.ics.uci.edu/ml/machine-learning-databases/00462/drugsCom_raw.zip).
+
+Think about all that you learned so far, both in terms of data engineering
+principles, specific code libraries, and good coding practices.
+
+Your pipeline will be triggered by running a single script (it can use separate
+modules), save intermediate results for each pipeline step in a way that
+maintains statelessness of compute resources, and perform detailed but concise
+logging for monitoring and debugging purposes.
