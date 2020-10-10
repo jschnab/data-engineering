@@ -34,3 +34,232 @@ online courses to get started with SQL:
 * [SQLCourse.com](https://www.sqlcourse.com) is clear, provides exercises and
   an interactive SQL interpreter. Don't let the old-school design of the
   website fool you.
+
+## Interacting programmatically with PostgreSQL databases using Psycopg
+
+### Introduction
+
+[Psycopg](https://www.psycopg.org/docs/) is one of the main PostgreSQL database
+adapters for Python. You can install it with `pip` by running:
+
+```
+pip install psycopg2-binary
+```
+
+The package `psycopg2-binary` is a pre-compiled version of the module that does
+not require the requirements described in the [installation
+documentation](https://www.psycopg.org/docs/install.html), which makes it
+easier to get started.
+
+### Basic usage
+
+We provide an overview of the basic usage described
+[here](https://www.psycopg.org/docs/usage.html).
+
+Psycopg's main entry point is the `connect()` function. It creates a new
+database session and returns a `connection` object that can be used to open a
+`cursor` object and perform SQL queries. Read more about the `connect()`
+function [here](https://www.psycopg.org/docs/module.html#psycopg2.connect).
+
+```
+import psycopg2
+
+con = psycopg2.connect(
+    dbname="test",
+    user="postgres",
+    password="secret",
+    host="localhost",
+    port=5432,
+)
+
+cur = con.cursor()
+
+cur.execute("SELECT * FROM users;")
+
+data = cur.fetchall()
+
+con.close()
+```
+
+### Execute commands
+
+The `cursor` object supports the `execute()` and `executemany()` commands to
+send commands to the database. `execute()` will run a single command, while
+`executemany()` will run a command several times with a list of provided
+command parameters.
+
+```
+cmd = "INSERT INTO users (id, name) VALUES (%s, %s);"
+
+new_users = [(1, "Jaynee"), (2, "Jonathan")]
+
+cur.executemany(cmd, new_users)
+```
+
+Read more about
+[`execute()`](https://www.psycopg.org/docs/cursor.html#cursor.execute) and
+[`executemany()`](https://www.psycopg.org/docs/cursor.html#cursor.executemany).
+
+### Fetch query results
+
+The `execute()` method returns `None` and results of individual queries
+executed by `executemany()` are discarded. To fetch query results, call the
+following functions:
+
+* `fetchone()`: fetch the next row of results, or None when no data is
+  available
+* `fetchmany()`: fetch the next *set of rows* of results, you pass an integer
+  to indicated the desired number of rows
+* `fetchall()`: fetch all remaining rows of results, or an empty list when no
+  data is available
+
+```
+cur.execute("SELECT * FROM users;")
+
+first_user = cur.fetchone()
+
+next_four = cur.fetchmany(4)
+
+remaining_users = cur.fetchall()
+```
+
+Read more about fetching results in the
+[documentation](https://www.psycopg.org/docs/cursor.html#cursor.fetchone).
+
+### Commit or rollback transactions
+
+Commands executed by a relational database are included in transactions, which
+help provide ACID guarantees on the database.
+
+After opening a connection to the database with `connect()`, the first time a
+command is sent to the database, a new transaction is created. The following
+database commands will be executed in the context of the same transaction, even
+commands issued by different cursors of the same connection. A transaction is
+terminated by calling either `commit()`, to make eventual changes persistent in the
+database, or `rollback()`, to cancel changes.
+
+If any command fails, the current transaction is aborted and no further command will
+be executed until `rollback()` is called.
+
+If the connection is closed while the transaction is in progress, the database
+will discard the transaction.
+
+It is possible to set the connection to `autocommit`, this will ensure that a
+successful command has immediate effect in the database. Autocommit is also
+useful to run commands such as `CREATE DATABASE`, which require to be run
+outside any transaction.
+
+```
+con = psycopg2.connect(dbname="demo_db", user="admin")
+
+con.autocommit = True
+
+cur = con.cursor()
+
+cur.execute("CREATE DATABASE human_resources;")
+
+con.close()
+```
+
+Read more about transaction control in the
+[documentation](https://www.psycopg.org/docs/connection.html#connection.commit).
+
+### `with` statement
+
+Connections and cursors are *context managers* and can be used with the `with`
+statement to terminated a transaction automatically. If not exception has been
+raised within the `with` block, the transaction is committed. Otherwise, the
+transaction is rolled back.
+
+```
+with psycopg2.connect(dbname="demo_db", user="admin") as con:
+    with con.cursor() as cur:
+        cur.execute("SELECT * FROM users;")
+        for row in cur:
+            print(row)
+```
+
+However, the `with` statement will not close the connection once the block
+exits. To do that, you can use a `try-finally` block.
+
+```
+con = psycopg2.connect(dbname="demo_db", user="admin")
+
+cur = con.cursor()
+
+try:
+    cur.execute("INSERT INTO users (id, name) VALUES (1, 'Jaynee');")
+    con.commit()
+finally:
+    con.close
+```
+
+### passing parameters to SQL queries
+
+Passing parameters to a SQL statement happens in functions like `execute()` by
+using `%s` placeholders in the SQL statement, and passing a sequence of values
+as the second argument of the function.
+
+```
+cur.execute("INSERT INTO users (id, name) VALUES (%s, %s);", (1, "Jaynee"))
+```
+
+One can also use named arguments using the `%(name)s` placeholder. This is
+useful to reuse arguments.
+
+```
+cur.execute("""
+    INSERT INTO users (id, name, date)
+    VALUES (%(id)s, %(name)s, %(date), %(date)s);
+    """,
+    {"id": 1, "name": "Jaynee", "date": datetime(2000, 1, 1)},
+)
+```
+
+Using the `%s` only works for query parameters, not for things such as column
+names or table names. For these use cases, you can use tools from the
+[psycopg2.sql
+module](https://www.psycopg.org/docs/sql.html#module-psycopg2.sql), which
+provides tools for SQL string composition. 
+
+```
+from psycopg2.sql import Identifier, SQL
+
+cur.execute(
+    SQL("INSERT INTO {} VALUES (%s, %s);").format(Identifier("users")),
+    (1, "Jaynee")
+)
+```
+
+There is a lot more covered in the
+[documentation](https://www.psycopg.org/docs/usage.html#passing-parameters-to-sql-queries).
+
+### using `COPY TO` and `COPY FROM`
+
+The Postgresql [COPY command](https://www.postgresql.org/docs/current/sql-copy.html) is an indispensable weapon in the arsenal of the data engineer. This allows moving data in and out of a database in bulk with a good performance.
+
+The `cursor` object provides a high level interface to the PostgreSQL command
+`COPY` through the following functions:
+
+* `copy_from()`: reads data from a file-like object and append them to a table
+* `copy_to()`: writes the contents of a table to a file-like object
+* `copy_expert()`: allows to use specific `COPY` arguments which are not
+  available in the other two functions
+
+Let's load a file into a table:
+
+```
+with open("data.csv") as f:
+    copy_from(f, table="users", sep=",", columns=("id", "name"))
+```
+
+Let's unload a table into a file (we do not specify column so all of them will
+be exported).
+
+```
+with open("data.csv", "w") as f:
+    copy_to(f, table="users", sep=",")
+```
+
+Read more about these functions in the
+[documentation](https://www.psycopg.org/docs/cursor.html#cursor.copy_from).
