@@ -9,7 +9,7 @@ from zipfile import ZipFile
 import boto3
 import pandas as pd
 
-S3_BUCKET = "jschnab-test-bucket"
+S3_BUCKET = "put your bucket name here"
 DATA_URL = (
     "https://archive.ics.uci.edu/ml/machine-learning-databases/"
     "00462/drugsCom_raw.zip"
