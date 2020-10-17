@@ -167,7 +167,7 @@ Read more about transaction control in the
 ### `with` statement
 
 Connections and cursors are *context managers* and can be used with the `with`
-statement to terminated a transaction automatically. If not exception has been
+statement to terminate a transaction automatically. If no exception has been
 raised within the `with` block, the transaction is committed. Otherwise, the
 transaction is rolled back.
 
@@ -263,3 +263,99 @@ with open("data.csv", "w") as f:
 
 Read more about these functions in the
 [documentation](https://www.psycopg.org/docs/cursor.html#cursor.copy_from).
+
+## Interacting programmatically with the SQLite database
+
+### SQLite
+
+[SQLite](https://www.sqlite.org/about.html) is a relational database engine
+with an open-source code. It is one of the most widely used databases.
+
+Contrary to other databases such as PostgreSQL, SQLite does not have a server
+process that you connect to using a client software. SQLite reads and writes
+are made directly to disk files, so a complete database is contained within a
+disk file.
+
+### the `sqlite3` Python library
+
+
+#### connect to a database
+
+The library [`sqlite3`](https://docs.python.org/3/library/sqlite3.html) is
+built in Python 3. `sqlite3` provides an inferface to connect to and run
+queries on SQLite databases. It works very similarly to `psycopg2`.
+
+You can connect to a database by calling the
+[`connect()`](https://docs.python.org/3/library/sqlite3.html#sqlite3.connect)
+function. This function operates in **autocommit mode by default**, this can be
+changed by using the [`isolation_level`
+parameter](https://docs.python.org/3/library/sqlite3.html#sqlite3.Connection.isolation_level).
+
+```
+import sqlite3
+con = sqlite3.connect("database.sq3")
+```
+
+You can create an in-memory database by running:
+
+```
+con = sqlite3.connect(":memory:")
+```
+
+#### execute basic queries
+
+The `Cursor` method
+[`execute()`](https://docs.python.org/3/library/sqlite3.html#sqlite3.Cursor.execute)
+will execute SQL commands.
+
+```
+con = sqlite3.connect(":memory:")
+cur = con.cursor()
+
+cur.execute("""
+    CREATE TABLE stocks
+    (date TEXT, action TEXT, ticker TEXT, quantity REAL, price REAL)""")
+
+cur.execute("""
+    INSERT INTO stocks
+    VALUES ('2020-10-17', 'buy', 'BX', 100, 55.34)""")
+
+con.commit()
+con.close()
+```
+
+#### parameterize SQL queries
+
+You can use the `?` placeholder when you want to parameterize a value in a
+SQLite query, and provide a tuple of values as the second argument of the
+cursor's `execute()` method:
+
+```
+ticker = ("BX",)
+cur.execute("SELECT * FROM stocks WHERE ticker = ?", ticker)
+print(cur.fetchone)
+```
+
+You can use the method
+[`executemany()`](https://docs.python.org/3/library/sqlite3.html#sqlite3.Cursor.executemany)
+to execute several commands:
+
+```
+trades = [
+    ("2020-10-17", "buy", "AAPL", 10, 119.02),
+    ("2020-10-17", "buy", "BX", 20, 55.34),
+    ("2020-10-17", "buy", "MSFT", 15, 219.66)
+]
+cur.executemany("INSERT INTO stocks VALUES (?, ?, ?, ?, ?)", trades)
+```
+
+#### reading data from the database
+
+After executing a `SELECT` statement, you can use the `Cursor` as an iterator,
+call the method `fetchone()` to get a single result, or call `fetchall()` to
+get all results.
+
+```
+for row in cur.execute("SELECT * from stocks ORDER BY price DESC"):
+    print(row)
+```
