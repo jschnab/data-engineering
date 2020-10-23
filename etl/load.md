@@ -359,3 +359,20 @@ get all results.
 for row in cur.execute("SELECT * from stocks ORDER BY price DESC"):
     print(row)
 ```
+
+## Exercises
+
+### Exercise 1: the Facebook page-page network dataset
+
+This dataset contains a graph of Facebook pages relationships. Nodes of the
+graph are stored in the *targets* CSV file and and represent individual pages.
+Edges of the graph are stored in the *edges* CSV file and represent page-page links.
+
+You can download the dataset
+[there](https://archive.ics.uci.edu/ml/datasets/Facebook+Large+Page-Page+Network).
+
+The job is to load the dataset into a database of your choice (e.g. SQLite).
+Then, you will query the dataset to join the two tables (nodes and edges) to
+reconstitute the graph and filter the results containing a page of your choice
+(e.g. "Joe Biden"). Also, order the pages linked to your page of choice by
+alphabetical order. Save the results as a CSV file.
