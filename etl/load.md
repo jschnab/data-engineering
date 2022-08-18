@@ -35,6 +35,9 @@ online courses to get started with SQL:
   an interactive SQL interpreter. Don't let the old-school design of the
   website fool you.
 
+* PostgreSQL tutorials at
+  [CrunchyData](https://crunchydata.com/developers/playground/psql-basics).
+
 ## Interacting programmatically with PostgreSQL databases using Psycopg
 
 ### Introduction
