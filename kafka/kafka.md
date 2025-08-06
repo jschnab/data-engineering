@@ -163,7 +163,108 @@ See this [Python
 snippet](https://github.com/confluentinc/confluent-kafka-python/blob/master/examples/eos_transactions.py)
 to see how transactions can be implemented in the producer and consumer.
 
-This is how Kafka Streams work.
+Transactions are used extensively in Kafka Streams.
+
+### Message retention and cleanup
+
+Storing messages forever leads to the following issues:
+* reaching the limits of storage capacity
+* processing performance when processing irrelevant messages (e.g. a system is
+    interested in the most recent state, but has to process the whole update
+    history for every key)
+* data needs to be deleted for legal and compliance reasons
+
+
+#### Log retention
+
+Messages that were produced before a certain time are deleted.
+
+Configure with topic parameters `cleanup.policy=delete` or broker parameter
+`log.cleanup.policy=delete`.
+
+Advantages:
+* little broker overhead
+* easy to implement data retention compliance policies
+
+Downsides:
+* data may be retained longer (depends on number of partitions, and time
+    difference between oldest and newest messages in the oldest partition)
+
+One option is to delete old data based on partition size. If the partition
+size determined by `retention.bytes` exceeds the configured value, the oldest
+segment is deleted.
+
+Another option is to delete data after a retention period defined with
+`retention.ms`. The partition is deleted when the newest messages in a segment
+is older than the value.
+
+Kafka checks if segments should be deleted every `retention.check.interval.ms`
+(default is 5 minutes).
+
+Log retention is imprecise, and old messages may stay longer than the desired
+interval because of:
+* writing of new data to a partition with messages older than the retention
+    period
+* retention check interval
+
+To mitigate this, we can adjust `segment.ms` (time after which messages are
+written to a new segment).
+
+All in all, messages may be as old the sum of `segment.ms`, `retention.ms`, and
+`log.retention.check.interval.ms`.
+
+##### Offset retention
+
+Offsets for consumer groups are also stored in a Kafka topic, so they are
+subject to retention defined by `offsets.retention.minutes`, which configures
+after what time offsets of inactive consumer groups should be deleted (default
+is 7 days).
+
+#### Log compaction
+
+For each message key, only the latest message is retained, so messages need to
+have keys).
+
+Configure with topic parameters `cleanup.policy=compact` or broker parameter
+`log.cleanup.policy=compact`.
+
+Advantages:
+* easy to implement a "keep most recent data" policy
+
+Downsides:
+* high overhead for brokers (search the entire log)
+
+Compaction does not happen continuously, but according to the value of several
+parameters:
+* `log.cleaner.backoff.ms`: (default is 15 seconds) Compaction time interval.
+* `min.cleanable.dirty.ratio`: (default is 0.5) A segment is considered dirty if
+  it has never been compacted. Setting a lower value saves more space but is also
+  more resource-intensive.
+* `log.cleaner.min.compaction.lag.ms`: Specify for how long messages should not
+  be compacted.
+* `log.cleaner.max.compaction.lag.ms`: Maximum period after which a messages should be
+  compacted.
+
+Log compaction totally rewrites segments, so this is only done on old segments,
+and not the current segment to avoid potential data loss. The parameter
+`max.compaction.lag.ms` will create a new segment after its value has elapsed.
+
+The log cleaner works by scanning uncompacted segments and saves the latest
+offset for each key, ignoring outdated messages, and writes messages to a new
+segment which replaces the old one once full. Therefore the cleaner requires
+the additional space of one segment at most.
+
+What if a consumer makes a request for an offset that does not exist anymore?
+Kafka provides the next available offset.
+
+##### Tombstones
+
+When we delete a message in Kafka, we produce a message with a null payload,
+called a tombstone. Log compaction then deletes messages associated with that
+key. The tombstone will then eventually be deleted to avoid having old segment
+full of tombstones (after 1 day by default but can be changed with the
+parameters `delete.retention.ms` or `log.cleaner.delete.retention.ms`). This
+gives time to consumer to process the tombstone.
 
 ## Cluster management
 
@@ -590,6 +691,20 @@ move to new partitions, and this would break message ordering guarantees.
 * `segment.ms`: Time interval after which a new segment is created.
 * `segment.bytes`: Maximum segment size.
 * `file.delete.delay.ms`: Delay before permanent data deletion.
+* `cleanup.policy`: Configure data retention, activated with value
+    `delete` or `compact`.
+* `retention.bytes`: Partition size that triggers deletion of the oldest
+  segment.
+* `retention.ms`: Message age that triggers deletion of the oldest segment.
+    deleted.
+* `min.cleanable.dirty.ratio`: A segment is considered dirty if it
+  has never been compacted. Setting a lower value saves more space but is also
+  more resource-intensive.
+* `min.compaction.lag.ms`: Specify for how long messages should not
+  be compacted.
+* `max.compaction.lag.ms`: Maximum period after which a messages should be
+  compacted.
+* `delete.retention.ms`: Tombstone TTL once messages have been deleted.
 
 ### Producer
 
@@ -657,3 +772,22 @@ move to new partitions, and this would break message ordering guarantees.
 * `replica.lag.time.max.ms`: Maximum delay to consider a replica in-sync.
 * `replica.fetch.wait.max.ms`: Time interval after which a follower fetches
     messages again from the leader.
+* `log.cleanup.policy`: Configure data retention, activated with value
+    `delete` or `compact`.
+* `log.retention.bytes`: Partition size that triggers deletion of the oldest
+  segment.
+* `log.retention.ms`: Message age that triggers deletion of the oldest segment.
+* `log.retention.check.interval.ms`: How often Kafka checks if segments should
+  be deleted.
+* `offsets.retention.minutes`: After how much time offsets of inactive consumer
+    groups should be deleted.
+* `log.cleaner.backoff.ms`: Compaction time interval.
+* `log.cleaner.min.cleanable.dirty.ratio`: A segment is considered dirty if it
+  has never been compacted. Setting a lower value saves more space but is also
+  more resource-intensive.
+* `log.cleaner.min.compaction.lag.ms`: Specify for how long messages should not
+  be compacted.
+* `log.cleaner.max.compaction.lag.ms`: Maximum period after which a messages should be
+  compacted.
+* `log.cleaner.delete.retention.ms`: Tombstone TTL once messages have been
+    deleted.
