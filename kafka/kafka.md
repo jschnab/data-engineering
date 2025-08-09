@@ -648,10 +648,156 @@ directory are permanently deleted after 1 min.
 
 ## Data schema
 
-Confluent Schema Registry is part of Confluent Enterprise.
+### Why do we need schemas?
 
-[Karapace](https://github.com/Aiven-Open/karapace) is an open-source
-alternative, and also serves as a Kafka REST proxy.
+Data can remain in a Kafka topic for a long time, so old and newer messages may
+follow a variety of data schemas as new fields are added to messages and old
+fields are removed. This may break consumers that expect a specific schema when
+they process a message.
+
+### Compatibility levels
+
+No compatibility guarantees:
+* consumers are expected to be always up to date.
+* can work OK if producers and consumers are managed by a single team, and
+  data is not stored for long periods.
+
+Backward compatibility:
+* consumers using the current schema version can also read older messages using
+    previous versions of the schema
+* useful when consumers need to 'rewind' a topic and consume old messages
+* consumers need to be updated first (tricky to achieve with cross-team
+    coordination)
+* supported changes: delete fields, add optional fields
+
+Forward compatibility:
+* consumer using the current schema can read messages published with newer
+    versions of the schema
+* no guarantee that consumers can read historical data
+* schema updated first by the producer (simpler to implement)
+* supported changes: add fields, delete optional fields
+
+Full compatibility:
+* both backward and forward compatibility guarantees
+* producers and consumers can be updated in any order
+* supported changes: add optional fields, delete optional fields
+
+### Schema registries
+
+Schema registries centralize managing and enforcing schemas, they are
+responsible for:
+* storing and versioning schemas
+* checking compatibilities when schema changes occur
+* enforce compliance with producers and consumers
+
+Schema registries currently do not provide ways to serve as schema
+documentation or visualization.
+
+Schema registries are a single point of failure.
+
+Schema registry providers:
+* Confluent Schema Registry is part of Confluent Enterprise.
+* [Karapace](https://github.com/Aiven-Open/karapace) is an open-source
+  alternative, and also serves as a Kafka REST proxy.
+* Apicurio, also supports OpenAPI and AsyncAPI
+
+### Schema validation
+
+Kafka operates on byte arrays, so schemas are usually checked only in clients,
+except in Confluent where broker-side schema validation is a feature.
+
+Kafka proxies can perform schema validation:
+* Conduktor (commercial)
+* Kroxylicious (open-source), also offers at-rest encryption
+
+A shared library containing the schema model used by producers and consumers
+can provide compile-time, static, type safety. One caveat is it creates tight
+coupling between teams and requires coordinated deployments across services.
+
+## Security
+
+![Securing Kafka](securing-kafka.png)
+
+### Transport encryption
+
+Kafka uses TLS for transport encryption.
+
+Both client-broker and broker-broker communications should be encrypted.
+
+TLS is based on asymmetric (public-private key) cryptography:
+1. Generate a key pair for each broker
+2. Sign each key pair with a Certificate Authority (CA)
+3. Configure a keystore for each broker, which holds the associated private key
+4. Configure a truststore containing the public key and distribute it to
+   clients (same on broker so they can trust each other)
+
+Example config:
+
+```
+listeners=PLAINTEXT://$IP:9092,SSL://$IP:9093
+listener.security.protocol.map=PLAINTEXT:PLAINTEXT,SSL:SSL
+ssl.keystore.location=/home/user/certs/broker.ks.p12
+ssl.keystore.type=PKCS12
+ssl.keystore.password=keystore-pw
+ssl.key.password=keystore-pw
+ssl.truststore.location=/home/user/certs/ca.truststore.p12
+ssl.truststore.password=truststore-pw
+ssl.truststore.type=PKCS12
+```
+
+### Authentication
+
+Can use TLS certificates (mutual TLS) or Simple Authentication and Security
+Layer (SASL).
+
+SASL has several authentication options:
+* SASL_GSSAPI (Kerberos)
+* SASL-OAUTHBEARER (OpenID Connect)
+* SASL-PLAIN (username + password and custom callback)
+* SASL-SCRAM (challenge-response mechanism)
+
+### Authorization
+
+Access Control Lists (ACL):
+* principal: who is authorized
+* resource type: what type of object the ACL rule is about
+* pattern type: how the resource name should be interpreted (literal or prefix)
+* resource name: what exact object the principal can or cannot access
+* operation: what action the principal can or cannot do with the resource
+* permission type: allow or deny
+* host: what IP the principal can come from
+
+### Encryption at rest
+
+Useful if it is required to prevent data center or cloud provider
+administrators from accessing data.
+
+Kafka does not natively support this, and relies on disk encryption
+capabilities of operating systems.
+
+Proxies can handle encryption for producers and decryption for consumers.
+
+### End-to-end encryption
+
+Kafka does not natively support this. Must be implemented by clients.
+
+Importantly, encrypted data cannot be compressed anymore, because encryption
+randomizes data.
+
+## Quotas
+
+Quotas are designed to protect the cluster from misconfigurations and prevent a
+single client from blocking the cluster, not to rate-limit clients. Therefore,
+quotas should be set generously and monitored closely.
+
+Should be set at the user level (client IDs can be arbitrarily set by clients).
+
+Two options:
+* How many bytes per second a client can send or receive.
+* How much CPU time a broker can allocate to a client.
+
+Quotas can be set with the `kafka-configs.sh` script, see the
+[documentation](https://kafka.apache.org/documentation/#quotas) for details.
 
 ## Gotchas
 
