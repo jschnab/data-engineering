@@ -5,6 +5,6 @@ COMMENT 'A model for sentiment analysis of text'
 WITH (
     'provider' = 'googleai'
     , 'endpoint' = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
-    , 'api-key' = 'AIzaSyA0HjZ2NyG0WoBHgZLTOnsZvM2nAbM63Dc'
+    , 'api-key' = '<api-key>'
     , 'system-prompt' = 'Classify the text below into one of the following labels: [positive, negative, neutral, mixed]. Output only the label.'
 );
