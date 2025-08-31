@@ -1,0 +1,32 @@
+| == Abstract Syntax Tree ==
+LogicalProject(window_start=[$0], window_end=[$1], livestream_id=[$2], gmv=[$3], cnt=[$4], rownum=[$5])
++- LogicalFilter(condition=[$6])
+   +- LogicalProject(window_start=[$0], window_end=[$1], livestream_id=[$2], gmv=[$3], cnt=[$4], rownum=[$5], QualifyExpression=[<=($5, 3)])
+      +- LogicalProject(window_start=[$0], window_end=[$1], livestream_id=[$2], gmv=[$3], cnt=[$4], rownum=[ROW_NUMBER() OVER (PARTITION BY $0, $1 ORDER BY $3 DESC NULLS LAST)])
+         +- LogicalAggregate(group=[{0, 1, 2}], gmv=[SUM($3)], cnt=[COUNT()])
+            +- LogicalProject(window_start=[$4], window_end=[$5], livestream_id=[$1], price=[$2])
+               +- LogicalTableFunctionScan(invocation=[TUMBLE(TABLE(#0), DESCRIPTOR(_UTF-16LE'order_timestamp'), 600000:INTERVAL MINUTE)], rowType=[RecordType(BIGINT order_id, BIGINT livestream_id, INTEGER price, TIMESTAMP(3) *ROWTIME* order_timestamp, TIMESTAMP(3) window_start, TIMESTAMP(3) window_end, TIMESTAMP(3) *ROWTIME* window_time)])
+                  +- LogicalProject(order_id=[$0], livestream_id=[$1], price=[$2], order_timestamp=[$3])
+                     +- LogicalWatermarkAssigner(rowtime=[order_timestamp], watermark=[-($3, -5000:INTERVAL SECOND)])
+                        +- LogicalTableScan(table=[[default_catalog, default_database, orders]])
+
+== Optimized Physical Plan ==
+WindowRank(window=[TUMBLE(win_start=[window_start], win_end=[window_end], size=[10 min])], rankType=[ROW_NUMBER], rankRange=[rankStart=1, rankEnd=3], partitionBy=[], orderBy=[gmv DESC], select=[window_start, window_end, livestream_id, gmv, cnt, w0$o0])
++- Exchange(distribution=[single])
+   +- Calc(select=[window_start, window_end, livestream_id, gmv, cnt])
+      +- GlobalWindowAggregate(groupBy=[livestream_id], window=[TUMBLE(slice_end=[$slice_end], size=[10 min])], select=[livestream_id, SUM(sum$0) AS gmv, COUNT(count1$1) AS cnt, start('w$) AS window_start, end('w$) AS window_end])
+         +- Exchange(distribution=[hash[livestream_id]])
+            +- LocalWindowAggregate(groupBy=[livestream_id], window=[TUMBLE(time_col=[order_timestamp], size=[10 min])], select=[livestream_id, SUM(price) AS sum$0, COUNT(*) AS count1$1, slice_end('w$) AS $slice_end])
+               +- Calc(select=[livestream_id, price, order_timestamp])
+                  +- TableSourceScan(table=[[default_catalog, default_database, orders, watermark=[-(order_timestamp, -5000:INTERVAL SECOND)], watermarkEmitStrategy=[on-periodic]]], fields=[order_id, livestream_id, price, order_timestamp])
+
+== Optimized Execution Plan ==
+WindowRank(window=[TUMBLE(win_start=[window_start], win_end=[window_end], size=[10 min])], rankType=[ROW_NUMBER], rankRange=[rankStart=1, rankEnd=3], partitionBy=[], orderBy=[gmv DESC], select=[window_start, window_end, livestream_id, gmv, cnt, w0$o0])
++- Exchange(distribution=[single])
+   +- Calc(select=[window_start, window_end, livestream_id, gmv, cnt])
+      +- GlobalWindowAggregate(groupBy=[livestream_id], window=[TUMBLE(slice_end=[$slice_end], size=[10 min])], select=[livestream_id, SUM(sum$0) AS gmv, COUNT(count1$1) AS cnt, start('w$) AS window_start, end('w$) AS window_end])
+         +- Exchange(distribution=[hash[livestream_id]])
+            +- LocalWindowAggregate(groupBy=[livestream_id], window=[TUMBLE(time_col=[order_timestamp], size=[10 min])], select=[livestream_id, SUM(price) AS sum$0, COUNT(*) AS count1$1, slice_end('w$) AS $slice_end])
+               +- Calc(select=[livestream_id, price, order_timestamp])
+                  +- TableSourceScan(table=[[default_catalog, default_database, orders, watermark=[-(order_timestamp, -5000:INTERVAL SECOND)], watermarkEmitStrategy=[on-periodic]]], fields=[order_id, livestream_id, price, order_timestamp])
+ |
