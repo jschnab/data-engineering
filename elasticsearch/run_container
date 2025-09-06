@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+docker run \
+    -d \
+    --name elasticsearch  \
+    -p 9200:9200 -p 9300:9300 \
+    -e "discovery.type=single-node" \
+    -e "cluster.routing.allocation.disk.threshold_enabled=false" \
+    -v ${PWD}/roles.yml:/usr/share/elasticsearch/config/roles.yml \
+    elasticsearch:9.1.3
