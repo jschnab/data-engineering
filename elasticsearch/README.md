@@ -14,7 +14,7 @@ Node types:
 * machine learning
 * ingest
 
-### Term indexing
+### Indexing
 
 Words stored in inverted indexes that map word to documents that contain them.
 
@@ -74,6 +74,11 @@ index:
 Query specific fields:
 ```
 title:data
+```
+
+Query exact sentence (double quotes):
+```
+"hello, world"
 ```
 
 Fuzziness (number of characters that can change, with Levenshtein distance):
@@ -341,6 +346,256 @@ POST _reindex
 ```
 
 Reindexing should be performed on a green cluster to avoid potential failures.
+
+## Index operations
+
+### Creating indexes
+
+Indexes are created automatically if the cluster setting
+`action.auto_create_index` is `true` (default) and a document is created on a
+non-existent index. Default index settings and mappings are used. Disabling
+automatic index creation can affect tools like Kibana, which create
+house-keeping indexes. Automatic index creation can be enabled for some index
+prefixes, e.g. `action.auto_create_index: [".*"]` allows indexes prefixed with
+a dot.
+
+When creating indexes, the following configuration can be specified:
+* Mappings: document field names and types.
+* Settings: number of shards, replicas, compression, etc. Static settings can
+    only be specified during creation (e.g. number of shards), while dynamic
+    settings can be changed on live indexes (e.g. number of replicas, refresh
+    interval, etc.).
+* Aliases: alternative names that can be used to refer to the index.
+
+Indexes are created explicitly using the [PUT
+<index>](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create)
+API endpoint. Corresponds to the
+[indices.create()](https://elasticsearch-py.readthedocs.io/en/latest/api/indices.html#elasticsearch.client.IndicesClient.create)
+Python client method.
+
+Dynamic settings can be updated using the `PUT <index>/_settings` endpoint.
+Corresponds to the
+[indices.put_settings()](https://elasticsearch-py.readthedocs.io/en/latest/api/indices.html#elasticsearch.client.IndicesClient.put_settings)
+method on the Python client.
+
+The number of shards is a static setting because this affect document routing.
+Changing the number of shards can be achieved via reindexing to a destination
+index with the desired number of shards.
+
+Retrieve settings with the `GET <index>/_settings` endpoint.
+
+Mappings can be specified using the following syntax:
+```
+{
+    "mappings": {
+        "properties": {
+            "<field-name-1": {
+                "type": "field-name-1-type",
+            },
+            "<field-name-2": {
+                "properties": {
+                    ...
+                }
+            }
+        }
+    }
+}
+```
+
+Fields with properties implictly specific an `object` type.
+
+Aliases allow zero-downtime reindexing, as the alias can point to the new index
+when it is ready. Aliases can be specified during index creation as:
+```
+{
+    "aliases": {
+        "<index-alias>: {}
+    }
+}
+```
+
+The API endpoint `PUT|POST <index>/_alias/<name>` can also be used to create of
+update aliases. The index name can be comma-separate index names, or contain a
+wildcard.
+
+If an alias points at several indexes, one must be flagged as the write index
+using the `"is_write_index": true` option.
+
+Steps for zero-downtime reindexing:
+1. Create alias for existing index.
+2. Create new index with desired configuration.
+3. Reindex documents from existing to new index.
+4. Update alias to point to new index.
+5. Delete old index.
+
+### Reading indexes
+
+Use the following endpoints:
+* `GET <index>`
+* `GET <index>/_settings`
+* `GET <index>/_mappings`
+* `GET <index>/_aliase`
+* `HEAD <index>` to determine if it exists
+
+Hidden indexes are prefixed with a dot, e.g. `.admin`. A query to `GET _all`
+will return them.
+
+### Deleting indexes
+
+Endpoint `DELETE <index>`.
+
+### Opening and closing indexes
+
+A closed index does not allow read or write operations. Also, memory allocated
+for data structures used for search is reclaimed, resulting in lower cluster
+overhead. Close an index with `POST <index>/_close`.
+
+To open an index, query `POST <index>/_open`.
+
+### Index templates
+
+Index templates allow to reuse index configuration.
+
+Two types:
+* composable (indexing) templates, made of zero or more components, can exist on their own
+* component templates, used to build composable templates
+
+Create indexing templates:
+```
+PUT _index_template/<name>
+{
+    "index_patterns": [...],
+    "priority": 1,
+    "template": {
+        "mappings": {},
+        "settings": {},
+        "aliases": {},
+        "lifecycle": {}
+    },
+    "composed_of": [...]
+}
+```
+
+Priority defines which template should be used when several match. Highest
+priority wins.
+
+Create component templates:
+```
+PUT _component_template/<name>
+{
+    "template": {
+        ...
+    }
+}
+```
+
+### Monitoring indexes
+
+Index statistics `GET <index>/_stats`. Response `_all` block has stats for all
+indices.
+
+Segment statistics `GET <index>/_stats/_segments`.
+
+### Advanced operations
+
+#### Splitting an index
+
+Splitting an index increases the number of shards, useful to increase index
+parallelism and keep index configuration.
+
+Steps:
+1. Make index read-only by applying setting `index.blocks.write: true`
+2. Make split request:
+    ```
+    POST <source-index>/_split/<target-index>
+    {
+        "settings": {
+            "index.number_of_shards": <n>
+        }
+    }
+    ```
+
+Target index must not exist. New number of shards must be multiple of old
+number of shards.
+
+#### Shrink index
+
+Pre-requisites:
+* Index must be read-only
+* A copy of all shards must be on the same node
+
+```
+PUT <index>/_settings
+{
+    "settings": {
+        "index.blocks.write": true,
+        "index.routing.allocation.require._name": "<node-name>"
+    }
+}
+```
+
+Shrink the index:
+```
+PUT <source-index>/_shrink/<target-index>
+{
+    "settings": {
+        "index.blocks.write": null,
+        "index.routing.allocation.require._name": null,
+        "index.number_of_shards": <n>
+    }
+}
+```
+
+The source number of shards must be a multiple of the target.
+
+#### Rollover an index
+
+Rollover creates a new blank index that is used to write new documents.
+
+Steps:
+1. Alias is created on old index:
+    ```
+    POST _aliases
+    {
+        "actions": [
+            {
+                "add": {
+                    "index": "<old-index-name>",
+                    "alias": "<alias-name>",
+                    "is_write_index": true
+                }
+            }
+        ]
+    }
+    ```
+2. Issue rollover request: `POST <alias-name>/_rollover/[<target-index>]`.
+
+The rollover operation will automatically create the new index and remap the
+alias to point to it.
+
+If the old index name is suffixed with a number and the target index is not
+provided in the request, the new index will have an incremented number, with
+6 digits and zero-padded.
+
+#### Index lifecycle management
+
+Index lifecycle management (ILM) can automate rollovers, e.g. writing new logs
+to a new index for the day.
+
+We can create an ILM policy and attach it to indexes:
+1. Define a policy with `PUT _ilm/policy/<policy-name>`.
+2. Create an index with a policy:
+    ```
+    PUT <index-name>
+    {
+        "settings": {
+            "index.lifecycle.name": "<policy-name>"
+        }
+    }
+    ```
+
+Policies are scanned every 10 minutes by default, can be adjusted with cluster
+setting `indices.lifecycle.poll_interval`.
 
 ## Gotchas
 
