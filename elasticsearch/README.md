@@ -597,6 +597,439 @@ We can create an ILM policy and attach it to indexes:
 Policies are scanned every 10 minutes by default, can be adjusted with cluster
 setting `indices.lifecycle.poll_interval`.
 
+## Text analysis
+
+### Analyzer components
+
+Text is analyzed during indexing and searching (when a query is processed).
+
+Analsysis = tokenization + normalization (token processing such as stemming,
+synonyms, removal of irrelevant tokens such as stop words).
+
+API endpoint to test text analysis is 
+[GET \_analyze](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze):
+```
+GET _analyze
+{
+    "tokenizer": ...,
+    "filter": [...],
+    "text": ...
+}
+```
+
+Analysis steps:
+1. Character filtering (0 or more filters, e.g. HTML tag filtering)
+2. Tokenization (1 mandatory tokenizer)
+3. Token filters (0 or more filters, e.g. stop words)
+
+### Built-in analyzers
+
+Standard analyzer has:
+* no character filter
+* standard tokenizer (grammar-based tokenization, splits at whitespace and
+    removes punctuation)
+* lowercase token filter
+
+Enable the english stopwords filter on an index analyzer:
+```
+PUT _index/<index-name>
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "standard_with_english_stopwords": {
+                    "type": "standard",
+                    "stopwords": "_english_",
+                }
+            }
+        }
+    }
+}
+```
+
+Custom stopwords can be stored in a file (put the file in the `config` folder,
+one word per line):
+```
+"analyzer": {
+    "standard_with_english_stopwords": {
+        "type": "standard",
+        "stopwords_path": "custom_stopwords.txt"
+    }
+}
+```
+
+Keyword analyzer:
+* no character or token filters
+* no-op tokenizer (text is stored as-is)
+
+Fingerprint analyzer:
+* no character filter
+* standard tokenizer
+* token filters: lowercase, ASCII folding (convert all to ASCII), stopwords,
+    fingerprint (remove duplicates and store words in sorted order, as a single
+    token)
+
+Pattern analyzer uses pattern tokenizer, which uses a regular expression to
+split text into tokens.
+
+Language analyzers can tokenize most common languages.
+
+### Custom analyzers
+
+Specify custom analyzer when creating an index:
+```
+PUT _index/<index-name>
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_custom_analyzer": {
+                    "type": "custom",
+                    "char_filter": ["html_strip"],
+                    "tokenizer": "standard",
+                    "filter": ["lowercase", "stop"]
+                }
+            },
+            "filter": {
+                "stop": {
+                  "type": "stop",
+                  "stopwords": "_english_"
+                }
+            }
+        }
+    },
+}
+```
+
+### Specifying analyzers
+
+Index-level analyzers, specify in the analysis attribute when creating an index
+(what most previous examples showed).
+
+Field-level analyzers: specify analyzer in mappings when creating an index.
+
+Query-level analyzers:
+* specify as part of the query
+* specify during index creation as part of mappings, as `search_analyzer`
+
+Analyzer precedence (from highest to lowest):
+1. Query
+2. `search_analyzer` index mappings
+3. Index
+
+### Character filters
+
+Used to remove, add, or replace characters in the text.
+
+#### HTML strip
+
+Removes HTML tags.
+
+Can specify tags to keep, by specifying a list of `escaped_tags` in a custom
+character filter.
+
+#### Mapping characters
+
+Replace characters by using a key-value definition. Characters not specified in
+the mapping definition are left untouched.
+
+Mappings can be specified in a file, provide the path in `mappings_path` and
+use the following format: one entry per line, `key=>value`.
+
+#### Pattern-replace
+
+Replace characters based on a regular expression. Specify the fields `pattern`
+and `replace` in a custom character filter.
+
+### Tokenizers
+
+Standard tokenizer is grammar-based: split text based on word boundaries and
+punctuation.
+
+#### N-gram and edge N-gram
+
+N-grams are sequences of a given size prepared given a word. 2-grams for coffee
+are: co, of, ff, fe, ee.
+
+Edge N-grams are anchored at the beginning of a word. For coffee: c, co, cof,
+coff, coffe, coffee.
+
+Configuration (not exhaustive) for `ngram` and `edge_ngram` tokenizers:
+* `min_char`: minimum number of characters
+* `max_char`: maximum number of characters
+* `token_chars`: list of character classes (letter, digit, etc.) that should be
+    included in a token (default [] to include all)
+
+#### Other tokenizers
+
+Keyword, pattern, path hierarchy, etc.
+
+### Token filters
+
+50 token filters available.
+
+Synonyms, word stems, etc.
+
+## Search
+
+![Search request processing](search.png)
+
+### Search fundamentals
+
+Two ways to query search endpoint:
+* URI request: `GET <index>/_search?q=title:godfather`
+* domain-specific language (DSL):
+  ```
+  GET movies/_search
+  {
+    "query": {
+      "match": {
+        "title": "godfather"
+      }
+    }
+  }
+  ```
+
+Search context:
+* Query: Calculates a relevance score, important for results ranking. See DSL
+    query above for an example.
+* Filter: Does not calculate relevance score, binary filtering of results,
+    either a document matches or it does not, faster results when ranking is
+    not critical. Filters are cached, leading to more efficient queries.
+
+Example filter context query:
+```
+GET <index>/_search
+{
+    "query": {
+        "bool": {
+            "filter": [
+                "match": {
+                    "title": "godfather"
+                }
+            ]
+        }
+    }
+}
+```
+
+`bool` query is a compound query with several possible clauses: `must`,
+`must_not`, `should`, `filter`.
+
+`aggs` queries perform aggregations, e.g.:
+```
+GET movies/_search
+{
+  "size": 0, 
+  "aggs": {
+    "average_movie_rating": {
+      "avg": {
+        "field": "rating"
+      }
+    }
+  }
+}
+```
+
+Set `size` to 0 to avoid returning hits, since we are only interested in the
+aggregate value.
+
+### Anatomy of a response
+
+Response attributes:
+* `took`: Time in milliseconds for the search to complete (excluding HTTP
+    request/response overhead time).
+* `hits.hits`: Array of search results.
+
+### Query DSL
+
+Query structure:
+```
+GET <index>/_search
+{
+    "query": {
+        <query-type>": {
+            ...
+        }
+    }
+}
+```
+
+### Leaf and compound queries
+
+Leaf queries look for a particular value in a particular field.
+
+Compound queries wrap leaf queries or other compound queries to compbine
+several searches in a logical fashion (e.g. `bool` query).
+
+### Search features
+
+### Pagination
+
+Set page size with `size` parameter, and the starting result page with `from`:
+```
+GET <index>/_search
+{
+  "size": 20,
+  "from": 20,
+  "query": {
+    ...
+  }
+}
+```
+
+This will fetch result items between 20 and 40 (i.e. the second page of
+results).
+
+### Highlight
+
+Highlight the search query:
+```
+GET movies/_search
+{
+  "_source": false,
+  "query": {
+    "term": {
+      "title": {
+        "value": "godfather"
+      }
+    }
+  },
+  "highlight": {
+    "fields": {
+      "title": {}
+    },
+    "pre_tags": "{{",
+    "post_tags": "}}",
+  }
+}
+```
+
+By default, highlight tags are HTML `<em>` tags. Specify custom tags with
+`pre_tags` and `post_tags`.
+
+### Explain
+
+Explain how the relevancy score was calculated:
+```
+GET <index>/_search
+{
+  "explain": true,
+  "query": {
+    ...
+  }
+}
+```
+
+Results are explained in the `_explanation` field.
+
+Or use the `_explain` API:
+```
+GET <index>/_explain/<doc-id>
+{
+    "query": {
+        ...
+    }
+}
+```
+
+### Sort
+
+By default, results are sorted by descending order of relevance score.
+
+We can sort results using different criteria with the `sort` attribute:
+```
+GET <index>/_search
+{
+  "query": {
+    ...
+  },
+  "sort": [
+    {
+      "<field-name>": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+```
+
+We can sort according to multiple fields by adding fields to the `sort` list,
+subsequent fields are used to break ties.
+
+### Manipulating results
+
+Suppress documents and just return metadata (document ID, score, highlights,
+etc.):
+```
+GET <index>/_search
+{
+    "_source": false,
+    "query": {
+        ...
+    }
+}
+```
+
+Fetching selected fields (which are returned as an array):
+```
+GET <index>/_search
+{
+    "_source": false,
+    "query": {...}
+    "fields": [<field-name-1, <field-name-2, ...],
+}
+```
+
+Scripting results (results `fields` attribute will contain the field
+`top_rated_movie`):
+```
+GET <index>/_search
+{
+  "query": {...},
+  "script_fields": {
+    "top_rated_movie": {
+      "script": {
+        "lang": "painless",
+        "source": "if (doc['rating'].value > 9.0) 'true'; else 'false'"
+      }
+    }
+  }
+}
+```
+
+Filter document fields:
+```
+{
+    "query": {...},
+    "_source": [...]
+    }
+```
+
+Or:
+```
+{
+    "query": {...},
+    "_source": {
+        "includes": [...],
+        "excludes": [...]
+    }
+}
+```
+
+Searching across indexes, and boost certain indexes:
+```
+GET _search
+{
+    "indices_boost": [
+        {<index-1>: <float>},
+        {<index-2>: <float>},
+        ...
+    ],
+    "query": {...}
+}
+```
+
 ## Gotchas
 
 When using the asynchronous client, the count of indexed documents may not be

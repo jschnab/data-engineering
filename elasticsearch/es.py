@@ -16,17 +16,23 @@ APP_USER_CREDS = (
     os.getenv("ELASTICSEARCH_PASSWORD"),
 )
 
-INDEX_TEXTS = "pastebin-texts"
+INDEX_TEXTS = "pastebin-texts-000001"
+ALIAS_INDEX_TEXTS = "pastebin-texts"
+
 SETTINGS_INDEX_TEXTS = {
     "analysis": {
         "analyzer": {
             "standard_with_stopwords_enabled": {
                 "type": "standard",
                 "stopwords": "_english_",
+                "char_filter": ["html_strip"],
             }
         }
     },
 }
+
+ALIASES_INDEX_TEXTS = {ALIAS_INDEX_TEXTS: {}}
+
 MAPPINGS_INDEX_TEXTS = {
     "properties": {
         "title": {
@@ -89,7 +95,7 @@ async def index_exists(name):
         print(f"Response: {resp}")
 
 
-async def create_index(name, settings, mappings):
+async def create_index(name, settings, mappings, aliases):
     async with get_client(superuser=True) as es:
         if await es.indices.exists(index=name):
             print(f"Index '{name}' already exists")
@@ -98,6 +104,7 @@ async def create_index(name, settings, mappings):
                 index=name,
                 settings=settings,
                 mappings=mappings,
+                aliases=aliases,
             )
             print(f"Response: {resp}")
 
@@ -122,7 +129,7 @@ async def index_texts():
                 "title": text["title"],
                 "body": body,
             }
-            await index_doc(index=INDEX_TEXTS, document=document)
+            await index_doc(index=ALIAS_INDEX_TEXTS, document=document)
 
 
 async def count_documents(index):
@@ -152,7 +159,13 @@ async def get_document_by_id(
 
 
 async def search(
-    index, q=None, query=None, source=None, highlight=None, fields=None
+    index,
+    q=None,
+    query=None,
+    source=None,
+    highlight=None,
+    fields=None,
+    explain=False,
 ):
     """
     Example:
@@ -172,6 +185,7 @@ async def search(
             q=q,
             query=query,
             source=source,
+            explain=explain,
         )
         print(f"Response: {resp}")
 
@@ -210,6 +224,12 @@ async def analyze(index, text):
         print(f"Response: {resp}")
 
 
+async def get_alias():
+    async with get_client(superuser=True) as es:
+        resp = await es.indices.get_alias()
+        print(f"Response: {resp}")
+
+
 async def node_stats():
     async with get_client(superuser=True) as es:
         resp = await es.nodes.stats()
@@ -223,7 +243,13 @@ async def concurrent():
 
 
 async def main():
-    await count_documents(INDEX_TEXTS)
+    await search(
+        ALIAS_INDEX_TEXTS,
+        query={"match": {"body": "contents"}},
+        source=False,
+        fields=["title"],
+        #highlight={"fields": {"body": {}}},
+    )
 
 
 if __name__ == "__main__":
