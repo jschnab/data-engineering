@@ -245,10 +245,8 @@ async def concurrent():
 async def main():
     await search(
         ALIAS_INDEX_TEXTS,
-        query={"match": {"body": "contents"}},
+        query={"exists": {"field": "title"}},
         source=False,
-        fields=["title"],
-        #highlight={"fields": {"body": {}}},
     )
 
 

@@ -1030,6 +1030,253 @@ GET _search
 }
 ```
 
+## Term searches
+
+### Overview of term-level search
+
+Term search is suitable when searching for exact matches, usually structured
+fields such as dates, booleans, ranges, keywords, etc.
+
+Matching documents have a relevance score by default, but it does not matter
+and we can use constant scoring for efficiency (save computation cost, and
+cache query).
+
+Term searches are not analyzed (no tokenization or normalization like
+lower-casing), so they produce results only for exact matches, and are
+therefore not a great fit for text fields.
+
+Query example, where the `certification` field is of type `keyword`:
+```
+GET <index>/_search
+{
+    "query": {
+        "term": {
+            "certification": "R",
+        }
+    }
+}
+```
+
+### `terms` query
+
+Query multiple values with `terms` query (array can contain up to 65,536
+elements, can be modified with index setting `max_terms_count`):
+```
+GET <index>/_search
+{
+    "query": {
+        "terms": {
+            "certification": ["R", "PG-13"]
+        }
+    }
+}
+```
+
+Term lookup search (get search value from a specific document):
+```
+GET <index>/_search
+{
+    "query": {
+        "terms": {
+            <field-to-search>: {
+                {
+                    "index": <index-to-get-value-from>,
+                    "id": <document-id>,
+                    "path": <field-path>
+                }
+            }
+        }
+    }
+}
+```
+
+### `ids` query
+
+Fetch documents with the specified identifiers:
+```
+GET <index>/_search
+{
+    "query": {
+        "ids": {
+            "values": [...]
+        }
+    }
+}
+```
+
+Equivalent to:
+```
+GET <index>/_search
+{
+    "query": {
+        "terms": {
+            "_id": [...]
+        }
+    }
+}
+```
+
+### `exists` query
+
+Return documents that have a specific field:
+```
+GET <index>/_search
+{
+    "query": {
+        "exists": {
+            "field": <field-name>
+        }
+    }
+}
+```
+
+Can also be used as a negative filter (e.g. documents that do not contain a
+specific field):
+```
+GET <index>/_search
+{
+    "query": {
+        "bool": {
+            "must_not": [
+                {
+                    "exists: {
+                        "field": <field-name>
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+### `range` query
+
+Find documents where a specific field is between a lower bound `gte`
+(inclusive) and an upper bound `lte` (inclusive):
+
+```
+GET <index>/_search
+{
+  "query": {
+    "range": {
+      "<field-name>": {
+        "gte": 9.0,
+        "lte": 9.5
+      }
+    }
+  }
+}
+```
+
+Exclusive operators `gt` and `lt`.
+
+Can filter numerical fields, dates, etc.
+
+Relative date filtering (date minus 2 days):
+```
+"range": {
+    "release_date": {
+        "lte": "22-05-2023||-2d"
+    }
+}
+```
+
+Relative date filtering (for the past year):
+```
+"range": {
+    "release_date": {
+        "gte": now-1y"
+    }
+}
+```
+
+### Wildcard queries
+
+Types of wildcards:
+* `*`: zero or more characters
+* `?`: a single character
+
+```
+GET <index>/_search
+{
+  "query": {
+    "wildcard": {
+      "<field>": {
+        "value": "<prefix>*"
+      }
+    }
+  }
+}
+```
+
+Wildcard queries are expensive, they put a higher load on nodes than other
+types of queries. Range queries are expensive as well. Expensive queries can be
+disabled with the cluster setting `search.allow_expensive_queries` set to
+`false`.
+
+### Prefix queries
+
+```
+GET <index>/_search
+{
+  "query": {
+    "prefix": {
+      <field-name>: {
+        "value": <prefix>
+      }
+    }
+  }
+}
+```
+
+Prefix queries are expensive.
+
+Prefix queries can be sped up by flagging fields that will be subject to such
+queries in mappings. Elasticsearch will build prefixes when indexing documents.
+
+```
+{
+  "mappings": {
+    "properties": {
+      "<field-name>":{
+        "type": "text",
+        "index_prefixes":{
+            "min_chars": 4,
+            "max_chars": 10
+        }
+      }
+    }
+  }
+}
+```
+
+`min_chars` is 2 by default and `max_chars` is 5 by default.
+
+### `fuzzy` queries
+
+Deal with spelling mistakes. Fuzziness is defined by Levenshtein distance (aka
+edit distance). A fuzziness of 1 will find words that differ by 1 character
+from the query value.
+
+```
+GET <index>/_search
+{
+  "query": {
+    "fuzzy": {
+      "<field-name>": {
+        "value": "...",
+        "fuzziness": 1
+      }
+    }
+  }
+}
+```
+
+Fuzziness is applied by default, depending on word length:
+* 0 to 2: fuzziness = 0
+* 3 to 5:  fuzziness = 1
+* greater than 5: fuzziness of 2
+
 ## Gotchas
 
 When using the asynchronous client, the count of indexed documents may not be
@@ -1071,6 +1318,9 @@ Is transformed like this during indexing:
 There is no array type in Elasticsearch. Any field can contain an array with
 elements all having the same type. During dynamic mapping, Elasticsearch infers
 type from the first element.
+
+Term-level queries and keyword fields are not analyzed, so be careful when
+issuing term-level queries and when querying keyword fields.
 
 ## Docker setup
 
