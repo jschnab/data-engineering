@@ -1277,6 +1277,219 @@ Fuzziness is applied by default, depending on word length:
 * 3 to 5:  fuzziness = 1
 * greater than 5: fuzziness of 2
 
+## Full-text search
+
+### Overview
+
+Full-text search targets unstructured data, and ranks results based on
+relevance scores.
+
+Relevance is measured with:
+* Precision: Proportion of relevant documents over documents returned by a
+    search (which includes both relevant and irrelevant documents).
+* Recall: Proportion of returned relevant documents over all relevant
+    documents. 
+
+Precision and recall are inversely correlated, and optimizing for one usually
+imparis the other one.
+
+### `match_all` queries
+
+Retrieve all documents from the index. Maximum recall, but low precision
+because many results are not relevant. Omitting the request body has the same
+effect as specifying `match_all`.
+
+```
+GET <index>/_search
+{
+    "query": {
+        "match_all": {}
+    }
+}
+```
+
+All hits have a score of 1.0.
+
+There is also a `match_none` query, which can be used to lock down an index for
+maintenance purposes.
+
+### `match` query
+
+```
+GET books/_search
+{
+  "query": {
+    "match": {
+      "<field-name>": "<search text>"
+    }
+  }
+}
+```
+
+`match` queries are analyzed using the same analyzer defined in the index,
+unless a specific analyzer is passed as part of the query.
+
+If the search text is made of several words, they are logically `OR`-ed by
+default. This can be changed using the `operator` parameter (need to use the
+query long format):
+```
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "Elasticsearch in Action",
+        "operator": "AND"
+      }
+    }
+  }
+}
+```
+
+The minimum number of matching words is specified with `minimum_should_match`:
+```
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "Elasticsearch in Action",
+        "operator": "AND",
+        "minimum_should_match": 2
+      }
+    }
+  }
+}
+```
+
+Fuzziness (character variations) can also be specified:
+```
+{
+  "query": {
+    "match": {
+      "title": {
+        "query": "bat",
+        "fuzziness": 1
+      }
+    }
+  }
+}
+```
+
+### `match_phrase` query
+
+Find documents that exactly match a phrase:
+```
+{
+  "query": {
+    "match_phrase": {
+      "body": "a book for Python programmers"
+    }
+  }
+}
+```
+
+The `slop` parameter allows variations in presence/absence of query words:
+```
+{
+  "query": {
+    "match_phrase": {
+      "body": {
+        "query": "Python programmer",
+        "slop": 3
+      }
+    }
+  }
+}
+```
+
+### `match_phrase_prefix` query
+
+Similar to `match_phrase`, except that the last word of the query is used as a
+prefix, e.g. `develop` would match `development`, `developers`, etc.
+
+### `multi_match` query
+
+A query is matched against several document fields. Individual fields can be
+boosted using the `<field-name>^<boost>` syntax:
+```
+{
+  "query": {
+    "multi_match": {
+        "query": "data",
+        "fields": ["title^2, "body"]
+    }
+  }
+}
+```
+
+By default, the search type is `best_fields`, meaning fields with more search
+words occurrences rank higher. This uses a `dis_max` (disjunction max) compound
+query under the hood. The previous query is equivalent to:
+```
+{
+  "query": {
+    "dis_max": {
+      "queries": [
+        {"match": {"title": "data"}},
+        {"match": {"body": "data"}}]
+    }
+  }
+}
+```
+
+The score depends on the field that scores higher, and ties can be broken using
+the `tie_breaker` attribute, which is used to weight the score of other fields:
+```
+{
+  "query": {
+    "multi_match": {
+        "query": "data",
+        "fields": ["title, "body"]
+        "tie_breaker": 0.5
+    }
+  }
+}
+```
+
+### `query_string` queries
+
+Perform a query based on a string with a specific
+[syntax](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-query-string-query#query-string-syntax)
+instead of building the query as a JSON object.
+
+For example:
+* Search a specific field: `<field-name>:<search-text>`
+* Search an exact phrase: `"<search-text>"`
+* Fuzziness: `bat~2`
+* Slop: `"great expectations"~2`
+* Regular expressions: `/joh?n(ath[oa]n)/`
+* Ranges: `<date-field>:[2012-01-01 TO 2012-12-31]`
+
+We can specify:
+* default field to use for the search (instead of all fields if the query
+    string does not specify fields)
+* the default logical operator (instead of `OR` if the query does not specify)
+
+```
+{
+    "query": {
+        "query_string": {
+            "query": "hello world",
+            "default_field": "title",
+            "default_operator": "AND"
+        }
+    }
+}
+```
+
+The query string syntax is sensitive, and any syntax error will lead to a bad
+request (status code 400). In the Python client, catch the `BadRequestError`
+exception and get `response["error"]["root_cause"][0]["reason"]` to get the
+error message.
+
+The `simple_query_string` query is similar to `query_string` but has a simpler
+syntax and does not error when a syntax error is encountered. Instead, it
+returns no search results.
+
 ## Gotchas
 
 When using the asynchronous client, the count of indexed documents may not be

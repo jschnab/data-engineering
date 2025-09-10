@@ -2,7 +2,10 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 
-from elasticsearch import AsyncElasticsearch
+from elasticsearch import (
+    AsyncElasticsearch,
+    BadRequestError,
+)
 
 HOST = "https://localhost:9200"
 
@@ -178,15 +181,20 @@ async def search(
     )
     """
     async with get_client() as es:
-        resp = await es.search(
-            index=index,
-            fields=fields,
-            highlight=highlight,
-            q=q,
-            query=query,
-            source=source,
-            explain=explain,
-        )
+        try:
+            resp = await es.search(
+                index=index,
+                fields=fields,
+                highlight=highlight,
+                q=q,
+                query=query,
+                source=source,
+                explain=explain,
+            )
+        except BadRequestError as err:
+            resp = err.info["error"]["root_cause"][0]["reason"]
+        except Exception as err:
+            resp = str(err)
         print(f"Response: {resp}")
 
 
@@ -245,8 +253,13 @@ async def concurrent():
 async def main():
     await search(
         ALIAS_INDEX_TEXTS,
-        query={"exists": {"field": "title"}},
+        query={
+            "query_string": {
+                "query": "title:iceberg\"",
+            }
+        },
         source=False,
+        highlight={"fields": {"body": {}, "title": {}}},
     )
 
 
