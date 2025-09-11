@@ -1490,6 +1490,181 @@ The `simple_query_string` query is similar to `query_string` but has a simpler
 syntax and does not error when a syntax error is encountered. Instead, it
 returns no search results.
 
+## Compound queries
+
+### `bool` queries
+
+Combines boolean clauses, each with a leaf query made of term-level or
+full-text queries.
+
+Clauses:
+* `must`: an `AND` query.
+* `must_not`: a `NOT` query.
+* `should`: an `OR` query.
+* `filter`: similar to `must` but no score is calculated.
+
+Query structure:
+```
+GET <index>/_search
+{
+    "query": {
+        "bool": {
+            "must": [{}],
+            "must_not": [{}],
+            "should": [{}],
+            "filter": [{}]
+        }
+    }
+}
+```
+
+Example `must` clause:
+```
+{
+    "query": {
+        "bool": {
+            "must": [
+                {"match": {{"product": "TV"}}},
+                {"range": {"price": {"gte": 700, "lte": 800}}},
+                {"term": {"resolution": "4K"}},
+                {"terms": {"color": ["silver", "black"]}}
+            ]
+        }
+    }
+}
+```
+
+`must_not` clauses do not influence hits score, because they are executed in a
+filter context.
+
+If `should` queries are used with a `must` query, none of the `should` queries
+are mandatory matches to get results, and they serve as score boosters. The
+parameter `minimum_should_match` can be set to enforce a specific number of
+`should` queries that should match.
+
+Because `filter` queries do not calculate a score, they run faster than their
+`must` counterparts. Also, Elasticsearch caches query results, so performance
+gets another boost. If `filter` is used with `must` or `should`, a score is
+still calculated.
+
+### Named queries
+
+```
+{
+    "query": {
+        "bool": {
+            "must": [
+                {
+                    "match": {
+                        "<field>": {
+                            "query": "<search-text>",
+                            "_name": "<query-name>"
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+Each result hit has an attribute `matched_queries` that lists the queries that
+this particular hit matched.
+
+### Constant score
+
+All results have the same score, specified in the `boost` parameter. The point
+is to boost other queries as part of a compound query. E.g. to boost the score
+of a `must` query:
+
+```
+{
+    "query": {
+        "bool": {
+            "must": [
+                {
+                    "match": {"product": "TV"}
+                },
+                {
+                    "constant_score": {
+                        "filter": {"term": {"colour": "black"}},
+                        "boost": 3.5
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+### Boosting query
+
+There are two parts:
+* Positive part: what we are searching.
+* Negative part: reduces the relevance score if it matches.
+
+```
+{
+  "query": {
+    "boosting": {
+      "positive": {
+        ...
+      },
+      "negative": {
+        ...
+      },
+      "negative_boost": 0.5
+    }
+  }
+}
+```
+
+In the previous query, the score calculated by the positive matches is reduced
+by 0.5
+
+Compound queries can make up positive or negative blocks.
+
+### Disjunction max query
+
+The `dis_max` query wraps several queries and expects at least one of them to
+match. If more than one query matches, the `dis_max` query returns the
+documents with the highest relevance score.
+
+We can also use the score of other queries (that do not have the maximum score)
+with a `tie_breaker` parameter (float): the score will be updated by
+multiplying the tie breaker to non-maximum scores and adding them to the
+core.
+
+### `function_score` query
+
+Generate a custom score based on user-defined requirements.
+
+```
+{
+    "query": {
+        "function_score": {
+            "query": {
+                "term": {
+                    "product.keyword": {
+                        "value": "TV",
+                    },
+                },
+            },
+            "<score-function>": {},
+        },
+    }
+}
+```
+
+Score functions:
+* `random_score`: use `seed` and `field` attributes for reproducibility.
+* `script_score`: use a script to calculate the score
+* `field_value_factor`: use value of fields without script complexity, set the
+    attributes `factor` (e.g. 3) and `modifier` (e.g. square).
+
+Score functions can be combined by passing a list of functions in the
+`functions` attributes of the query.
+
 ## Gotchas
 
 When using the asynchronous client, the count of indexed documents may not be

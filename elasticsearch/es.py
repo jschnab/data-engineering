@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 
@@ -98,7 +99,13 @@ async def index_exists(name):
         print(f"Response: {resp}")
 
 
-async def create_index(name, settings, mappings, aliases):
+async def index_get_mapping(name):
+    async with get_client(superuser=True) as es:
+        resp = await es.indices.get_mapping(index=name)
+        print(f"Response: {resp}")
+
+
+async def create_index(name, settings=None, mappings=None, aliases=None):
     async with get_client(superuser=True) as es:
         if await es.indices.exists(index=name):
             print(f"Index '{name}' already exists")
@@ -115,6 +122,12 @@ async def create_index(name, settings, mappings, aliases):
 async def delete_index(name):
     async with get_client(superuser=True) as es:
         resp = await es.indices.delete(index=name)
+        print(f"Response: {resp}")
+
+
+async def index_bulk(index, doc_list):
+    async with get_client() as es:
+        resp = await es.bulk(index=index, operations=doc_list)
         print(f"Response: {resp}")
 
 
@@ -180,7 +193,7 @@ async def search(
         highlight={"fields": {"body": {}}},
     )
     """
-    async with get_client() as es:
+    async with get_client(superuser=True) as es:
         try:
             resp = await es.search(
                 index=index,
@@ -252,14 +265,21 @@ async def concurrent():
 
 async def main():
     await search(
-        ALIAS_INDEX_TEXTS,
+        "products",
         query={
-            "query_string": {
-                "query": "title:iceberg\"",
-            }
+            "function_score": {
+                "query": {
+                    "term": {
+                        "product.keyword": {
+                            "value": "TV",
+                        },
+                    },
+                },
+                "random_score": {},
+            },
         },
         source=False,
-        highlight={"fields": {"body": {}, "title": {}}},
+        #highlight={"fields": {"product": {}, "price": {}}},
     )
 
 
