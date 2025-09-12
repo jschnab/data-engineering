@@ -126,7 +126,7 @@ async def delete_index(name):
 
 
 async def index_bulk(index, doc_list):
-    async with get_client() as es:
+    async with get_client(superuser=True) as es:
         resp = await es.bulk(index=index, operations=doc_list)
         print(f"Response: {resp}")
 
@@ -265,21 +265,24 @@ async def concurrent():
 
 async def main():
     await search(
-        "products",
+        ALIAS_INDEX_TEXTS,
         query={
-            "function_score": {
-                "query": {
-                    "term": {
-                        "product.keyword": {
-                            "value": "TV",
-                        },
-                    },
+            "span_within": {
+                "little": {"span_term": {"body": "engineering"}},
+                "big": {
+                    "span_near": {
+                        "clauses": [
+                            {"span_term": {"body": "functional"}},
+                            {"span_term": {"body": "process"}},
+                        ],
+                        "slop": 20,
+                        "in_order": True,
+                    }
                 },
-                "random_score": {},
-            },
+            }
         },
         source=False,
-        #highlight={"fields": {"product": {}, "price": {}}},
+        highlight={"fields": {"body": {}}},
     )
 
 

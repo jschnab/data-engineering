@@ -1665,6 +1665,399 @@ Score functions:
 Score functions can be combined by passing a list of functions in the
 `functions` attributes of the query.
 
+## Advanced search
+
+### Geosearch
+
+#### Overview
+
+`bounding_box` query finds documents within a rectangular area.
+
+`geo_distance` query finds documents within a radius from a specific location.
+
+`geo_shape` query finds documents enclosed in a polygon.
+
+Geo-spatial data types:
+* `geo_point`: Defined by latitude and longitude. Data format are
+    `<lat>, <lon>` or `{"lon": <lon>, "lat": <lat>}` or `[<lon>, <lat>]`, or
+    geohash.
+* `geo_shape`: Defined using [GeoJSON](http://geojson.org/). Can represent
+    point, multiple points, polygon, etc. GeoJSON format is
+    `POINT (<lon>, <lat>)` (note longitude precedes latitude).
+
+#### `geo_bounding_box` query
+
+`geo_bounding_box` query (provide location of top-left and bottom right
+corners of the box):
+```
+GET <index>/_search
+{
+  "query": {
+    "geo_bounding_box": {
+      "<field-name>": {
+        "top_left": [0.2, 52],
+        "bottom_right": [0.1, 49]
+      }
+    }
+  }
+}
+```
+
+Equivalent query in array format (longitude first):
+```
+{
+  "query": {
+    "geo_bounding_box": {
+      "<field-name>": {
+        "top_left": {
+          "lat": 52,
+          "lon": 0.2
+        },
+        "bottom_right": {
+          "lat": 49,
+          "lon": 0.1
+        }
+      }
+    }
+  }
+}
+```
+
+Equivalently in WKT BBOX:
+```
+"geo_bounding_box": {
+    "location": {
+        "wkt":"BBOX(0.2, 0.1, 52.00, 49.00)"    ❶
+    }
+}
+```
+
+All document scores are the same (i.e. boolean inside VS outside box).
+
+#### `geo_distance` query
+
+```
+GET <index>/_search
+{
+  "query": {
+    "geo_distance": {
+      "distance": "175 km",
+      "<field-name>": {
+        "lat": 50.00,
+        "lon": 0.10
+      }
+    }
+  }
+}
+```
+
+Also accepts distance in miles: `100mi` (with or without space between value
+and units).
+
+#### `geo_shape` query
+
+```
+GET cafes/_search
+{
+  "query": {
+    "geo_shape": {
+      "<field-name>": {
+        "shape": {
+          "type": "envelope",
+          "coordinates": [
+            [0.1,55],
+            [1,45]
+          ]
+        },
+        "relation": "within"
+      }
+    }
+  }
+}
+```
+
+Relations:
+* `intersects` (default): document may be partially enclosed by shape
+* `within`: document must be totally enclosed by shape
+* `contains`: documents that contain the shape
+* `disjoint`: documents that do not overlap with the shape
+
+#### `shape` query
+
+Query fields with type `shape`:
+```
+{
+  "mappings": {
+    "properties": {
+      "<field-name>":{
+        "type": "shape"
+      }
+    }
+  }
+}
+```
+
+Search query:
+```
+GET <index>/_search
+{
+  "query": {
+    "shape": {
+      "<field-name>": {
+        "shape": {
+          "type":"envelope",
+          "coordinates":[[10,16],[14,10]]
+        }
+      }
+    }
+  }
+}
+```
+
+### `span` query
+
+Useful to find tokens within a specific distance from each other.
+
+#### `span_first`
+
+`span_first` query (find documents with token in the first nth position of the
+document):
+```
+GET <index>/_search
+{
+  "query": {
+    "span_first": {
+      "match": {
+        "span_term": {
+          "<field-name>": "<term-to-search>"
+        }
+      },
+      "end": 5
+    }
+  }
+}
+```
+
+Be careful with term queries (not analyzed) on analyzed fields (such as text),
+because they may be normalized (as with the standard analyzer)
+and not return results.
+
+#### `span_near`
+
+Find words that are within N words from each other:
+```
+GET <index>/_search
+{
+  "query": {
+    "span_near": {
+      "clauses": [
+        {
+          "span_term": {
+            "<field-name>": "<word-1>"
+          }
+        },
+        {
+          "span_term": {
+            "<field-name>":  "<word-2>"
+          }
+        }
+      ],
+      "slop": <number-of-words-in-between>,
+      "in_order": <true|false>
+    }
+  }
+}
+```
+
+#### `span_within`
+
+Find a word between two other flanking words.
+
+```
+GET <index>/_search
+{
+  "query": {
+    "span_within": {
+      "little": {
+        "span_term": {
+          "<field-name>": "<word-in-between>"
+        }
+      },
+      "big": {
+        "span_near": {
+          "clauses": [
+            {
+              "span_term": {
+                "<field-name>": "<word-flanking>"
+              }
+            },
+            {
+              "span_term": {
+                "<field-name>": "<word-flanking>"
+              }
+            }
+          ],
+          "slop": 4,
+          "in_order": true
+        }
+      }
+    }
+  }
+}
+```
+
+#### `span_or`
+
+Logical `OR` on span queries:
+```
+{
+  "query": {
+    "span_or": {
+      "clauses": [...],
+    }
+  }
+}
+```
+
+### `distance_feature` queries
+
+Useful to boost results depending on their proximity to a search field value
+(e.g. a date, a geographical location, etc.).
+
+The following query matches all documents from the index and boosts hit scores
+if they are within the pivot distance from the origin value.
+```
+GET <index>/_search
+{
+  "query": {
+    "distance_feature": {
+      "field": "<field-name>",
+      "origin": [-0.0860, 51.5048],
+      "pivot": "10 km"
+    }
+  }
+}
+```
+
+The following query matches documents based on the `must` clause, and boosts
+results if the value of `<field-2>` is within 30 days from the origin date.
+```
+GET <index>/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "<field-1>": <value-1>
+          }
+        }
+      ],
+      "should": [
+        {
+          "distance_feature": {
+            "field": "<field-2>",
+            "origin": "1-12-2020",
+            "pivot": "30 d"
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+### `pinned` query
+
+Useful to boost the relevance score of some documents above all other results
+(e.g. for a sponsored feature).
+
+```
+GET <index>/_search
+{
+  "query": {
+    "pinned": {
+      "ids": [<list-of-document-ids-to-boost>],
+      "organic": {
+        "match": {
+          "<field-to-search>": <value-to-search>
+        }
+      }
+    }
+  }
+}
+```
+
+Pinned documents have no score, they are presented in the order specified by
+the query.
+
+### `more_like_this` query
+
+```
+GET <index>/_search
+{
+  "query": {
+    "more_like_this": {
+      "fields": ["<field-1>", "<field-2>", ...],
+      "like": "<value-to-search>",
+      "min_term_freq": 1,
+      "max_query_terms": 12,
+      "min_doc_freq": 1
+    }
+  }
+}
+```
+
+### `percolate` query
+
+Useful to notify users when a query that previously returned no results now
+returns results.
+
+Create a percolator index:
+```
+PUT <percolator-index-name>
+{
+  "mappings": {
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      ...  # other fields here from the original index
+    }
+  }
+}
+```
+
+When a query returns no results, index it in the percolator index:
+```
+PUT <percolator-index-name>/_doc/<id>
+{
+  "query" : {
+    ...
+  }
+}
+```
+
+When a new document comes in, search the percolator index for queries that
+match this document:
+```
+GET <percolator-index-name>/_search
+{
+  "query": {
+    "percolate": {
+      "field": "query",
+      "document": {
+        ...
+      }
+    }
+  }
+}
+```
+
+This is useful to send alert and notifications to users who ran a previously
+unsuccessful query, or saved a specific search and want to be alerted when new
+results come in.
+
 ## Gotchas
 
 When using the asynchronous client, the count of indexed documents may not be
