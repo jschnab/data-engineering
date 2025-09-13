@@ -176,12 +176,15 @@ async def get_document_by_id(
 
 async def search(
     index,
+    aggregations=None,
+    aggs=None,
     q=None,
     query=None,
     source=None,
     highlight=None,
     fields=None,
     explain=False,
+    size=None,
 ):
     """
     Example:
@@ -193,16 +196,20 @@ async def search(
         highlight={"fields": {"body": {}}},
     )
     """
+    if aggs is not None:
+        aggregations = aggs
     async with get_client(superuser=True) as es:
         try:
             resp = await es.search(
                 index=index,
                 fields=fields,
                 highlight=highlight,
+                aggregations=aggregations,
                 q=q,
                 query=query,
                 source=source,
                 explain=explain,
+                size=size,
             )
         except BadRequestError as err:
             resp = err.info["error"]["root_cause"][0]["reason"]
@@ -265,24 +272,15 @@ async def concurrent():
 
 async def main():
     await search(
-        ALIAS_INDEX_TEXTS,
-        query={
-            "span_within": {
-                "little": {"span_term": {"body": "engineering"}},
-                "big": {
-                    "span_near": {
-                        "clauses": [
-                            {"span_term": {"body": "functional"}},
-                            {"span_term": {"body": "process"}},
-                        ],
-                        "slop": 20,
-                        "in_order": True,
-                    }
+        "books",
+        aggregations={
+            "author_book_count": {
+                "terms": {
+                    "field": "author.keyword",
                 },
-            }
+            },
         },
-        source=False,
-        highlight={"fields": {"body": {}}},
+        size=0
     )
 
 

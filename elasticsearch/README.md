@@ -2058,6 +2058,263 @@ This is useful to send alert and notifications to users who ran a previously
 unsuccessful query, or saved a specific search and want to be alerted when new
 results come in.
 
+## Aggregations
+
+### Overview
+
+Three categories of aggregations:
+* metrics (sum, etc.)
+* bucket (histograms, etc.)
+* pipelines (aggregations working on output of other aggregations)
+
+Syntax:
+```
+GET <index-name>/_search
+{
+  "size": 0,
+  "aggregations|aggs": {
+    "<custom-name-for-agg>": {
+      "<aggregation-type>": {
+        ...}
+    }
+  }
+}
+```
+
+We set `size` to `0` to avoid returning the documents that make up the
+aggregation (usually they are not important).
+
+A search can combine a query and an aggregation, resulting in a scoped
+aggregation on query results (otherwise aggregation works on all documents from
+the index).
+
+Aggregations on text fields are not optimized, so they are disabled by default.
+It's better to use a `keyword` field, instead.
+
+### Metric aggregations
+
+#### `value_count`
+
+```
+"aggs": {
+    "total_number_of_values": {
+        "value_count": {
+            "field": "best_seller"
+        }
+    }
+}
+```
+
+#### `avg`
+
+```
+"aggs": {
+    "tv_average_price": {
+        "avg": {
+            "field": "price_gbp"
+        }
+    }
+}
+```
+
+#### `sum`
+
+```
+"aggs": {
+    "tv_total_price": {
+        "sum": {
+            "field": "price_gbp",
+        }
+    }
+}
+```
+
+#### `min` and `max`
+
+```
+"aggs": {
+    "minimum_price": {
+        "min": {
+            "field": "price_gbp"
+        }
+    },
+    "maximum_price": {
+        "max": {
+            "field": "price_gbp"
+        }
+    }
+}
+```
+
+#### `stats` and `extended_stats`
+
+Provides several basic stats.
+
+```
+"aggs": {
+    "sales_stats": {
+        "stats": {
+            "field": "sales"
+        }
+    }
+}
+```
+
+#### `cardinality`
+
+Returns the number of unique values. This runs as an approximation to ensure
+good performance.
+
+Again, for text fields, use the `keyword`-typed field.
+
+```
+"aggs": {
+    "n_unique_brands": {
+        "cardinality": {
+            "field": "brand.keyword"
+        }
+    }
+}
+```
+
+### Bucket aggregations
+
+#### Histograms
+
+```
+"aggs": {
+    "ratings_histogram": {
+        "histogram": {
+            "field": "amazon_rating",
+            "interval": 1
+        }
+    }
+}
+```
+
+Date histogram:
+```
+"aggs": {
+    "release_year_histogram": {
+        "date_histogram": {
+            "field": "release_year",
+            "calendar_interval": "year"
+        }
+    }
+}
+```
+
+We can also set a fixed interval with `fixed_interval`, to set intervals that
+are not calendar intervals (days, hours, minutes, etc.).
+
+Child-level aggregations allow us to calculate metrics per bucket, e.g.:
+```
+"aggs": {
+    "release_year_histogram": {
+        "date_histogram": {
+            "field": "release_year",
+            "calendar_interval": "year"
+        },
+        "aggs": {
+            "avg_rating_per_bucket": {
+                "avg": {
+                    "field": "amazon_rating"
+                }
+            }
+        }
+    }
+}
+```
+
+Custom ranges:
+```
+"aggs": {
+    "book_ratings_range": {
+        "range": {
+            "field": "amazon_rating",
+            "ranges": [
+                {
+                    "from": 1,
+                    "to": 4
+                },
+                {
+                    "from": 4,
+                    "to": 5
+                }
+            ]
+        }
+    }
+}
+```
+
+Term aggregation builds a per-value count for field (use the `size` parameter
+to specify the top-N results to retrieve (by default 10):
+```
+"aggs": {
+    "author_book_count": {
+        "terms": {
+            "field": "author.keyword",
+            "size": 25
+        }
+    }
+}
+```
+
+Multi-terms aggregation (aggregation key is combination of terms):
+```
+"aggs": {
+    "author_title_map": {
+        "multi_terms": {
+            "terms": [
+                {
+                    "field": "author.keyword"
+                },
+                {
+                    "field": "title.keyword"
+                }
+            ]
+        }
+    }
+}
+```
+
+### Parent and sibling aggregation
+
+With parent-child aggregations, parent buckets enclose child buckets (e.g. when
+we create aggregations within a histogram). The child aggregation is a level
+deeper in the query than the parent aggregation.
+
+Sibling aggregations create buckets at the same level, and they are at the same
+level in the query.
+
+### Pipeline aggregations
+
+```
+"aggs": {
+    "sales_by_coffee": {
+        "date_histogram": {
+            "field": "date",
+            "calendar_interval": "1d"
+        },
+        "aggs": {
+            "cappuccino_sales": {
+                "sum": {
+                    "field": "sales.cappuccino"
+                }
+            },
+            "total_cappuccinos": {
+                "cumulative_sum": {
+                    "buckets_path": "cappuccino_sales"
+                }
+            }
+        }
+    }
+}
+```
+
+The metric `total_cappuccinos` is created by pipelining `cappuccino_sales`
+into a `cumulative_sum` aggregation.
+
 ## Gotchas
 
 When using the asynchronous client, the count of indexed documents may not be
