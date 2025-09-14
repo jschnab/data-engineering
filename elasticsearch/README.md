@@ -2315,6 +2315,264 @@ level in the query.
 The metric `total_cappuccinos` is created by pipelining `cappuccino_sales`
 into a `cumulative_sum` aggregation.
 
+## Cluster administration
+
+### Scaling the cluster
+
+Cluster nodes should be deployed on different servers to ensure shard replicas
+can be used to recover shards on a failed server.
+
+Cluster health available on `_cluster/health`:
+* Green: All shards and replicas are assigned and ready.
+* Yellow: Shards are assigned and ready, but not replicas.
+* Red: Not all shards are assigned and ready.
+
+Check shard allocation:
+```
+GET _cluster/allocation/explain
+{
+    "index": <index-name>,
+    "shard": <shard-number>,
+    "primary": <true|false>
+}
+```
+
+For unassigned shards, it provides an explanation for why the shard is
+unassigned. For assigned shards, it provides an explanation for why the shard
+is remaining on its current node and has not moved or rebalanced to another
+node.
+
+Increase read throughput by adding read replicas:
+```
+PUT <index-name>/_settings
+{
+  "number_of_replicas": <n-replicas>
+}
+```
+
+### Node communication
+
+REST API exposed on port 9200 by default, inter-node communication on port 9300
+by default.
+
+### Shard sizing
+
+Calculating the necessary number of shards in Elasticsearch is not a simple
+formula, but a strategic process based on two main considerations: the optimal
+shard size and the number of shards per node. [1, 2, 3, 4, 5]
+
+The following guidance is from Google Gemini, and is somewhat deprecated for
+Elasticsearch version 8.3+, which has decreased heap memory requirements per
+shard.
+
+Read the documentation:
+* https://www.elastic.co/docs/deploy-manage/production-guidance/optimize-performance/size-shards
+* https://www.elastic.co/blog/how-many-shards-should-i-have-in-my-elasticsearch-cluster
+* https://moldstud.com/articles/p-identifying-bottlenecks-in-your-elasticsearch-cluster-health-a-comprehensive-guide
+
+#### Rule of thumb: Start with shard size
+
+The most important factor is the size of each individual shard. A good starting
+point is to aim for a primary shard size between 10 GB and 50 GB, and at most
+200 million documents per shard. You should plan for future data growth, as the
+number of primary shards cannot be changed once an index is created. [1, 6, 7, 8, 9]
+
+The basic calculation for the number of primary shards is:
+```
+# primary shards between (projected index size / 10 GB) and (projected index size / 50 GB)
+```
+
+For example, if you expect to have 300 GB of data in an index over its
+lifetime, you could aim for a middle-ground shard size of 30 GB. You would
+start by creating the index with 10 primary shards (300 GB / 30 GB). [10, 11]
+
+#### Consider your node and heap size
+
+The next step is to ensure that your cluster has enough capacity to handle the
+shards. An important best practice is to aim for no more than 20 shards per
+GB of Java heap memory on each node. [12, 13, 14, 15, 16]
+
+For example, if you have data nodes with 30 GB of heap memory, the maximum
+number of shards a single node can handle is: 20 shards/GB * 30 GB = 600 shards.
+
+This includes both primary and replica shards. [2, 17]
+
+#### Calculation for total shards (primaries and replicas)
+
+To get the total number of shards, you must also account for replicas, which
+are copies of your primary shards that provide high availability and faster
+search performance. [18, 19, 20, 21, 22]
+
+For a production cluster, a common setting is to have at least one replica per
+primary shard for high availability. [23]
+
+#### How to put it all together
+
+Let's apply these rules to a hypothetical logging use case for a rolling index
+(a common time-based scenario).
+
+Scenario: You expect to ingest 200 GB of log data per day and have a 3-node
+cluster, with each node having 30 GB of heap memory.
+
+1. Determine primary shards:
+    * Using the 10-50 GB guideline, and knowing the data volume is predictable,
+      aim for 20 GB shards.
+    * Number of primary shards per day's index = 200 GB / 20 GB = 10 primary shards.
+
+2. Determine total shards per index:
+    * To ensure high availability, use one replica per primary shard (10 replicas).
+    * Total shards per day's index = 10 primary + 10 replica = 20 total shards.
+
+3. Validate against node capacity:
+    * Maximum shards per node =  20 shards/GB heap memory * 30 GB = 600 shards.
+    * This is a generous limit, and your setup will easily fit within this
+      constraint as you manage new daily indices. [24, 25, 26, 27, 28]
+
+#### Other considerations
+
+Over-sharding vs. under-sharding: Too many small shards lead to management
+overhead, higher CPU and memory usage, and slower search speeds. Too few large
+shards can hinder parallel processing and slow down recovery after a node failure.
+
+Performance vs. storage: While a target shard size is a great starting point,
+the ideal number of shards is also heavily influenced by your specific query
+and indexing load. Benchmarking with realistic data is the most accurate way to
+optimize.
+
+Index Lifecycle Management (ILM): For time-series data like logs, use ILM to
+automate index rollovers and shard management. ILM can create new indices with
+the correct shard count when the old index reaches a certain size or age.
+
+### Snapshots
+
+Snapshots
+[documentation](https://www.elastic.co/docs/deploy-manage/tools/snapshot-and-restore).
+
+Snapshots are useful for:
+* Backup data
+* Recover data after deletion or hardware failure
+* Transfer data between clusters
+* Reduce costs with searchable snapshots (Enterprise license)
+
+#### Registering a snapshot repository
+
+[Self-managed
+repositories](https://www.elastic.co/docs/deploy-manage/tools/snapshot-and-restore/self-managed)
+include:
+* Azure
+* Google Cloud
+* [AWS
+    S3](https://www.elastic.co/docs/deploy-manage/tools/snapshot-and-restore/s3-repository)
+* Shared file-system
+* HDFS
+
+Registering an S3-compatible repository (could use MinIO):
+```
+PUT _snapshot/my_s3_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "/tmp/elasticsearch_snapshots"
+  }
+}
+```
+
+The following setting must be added to `elasticsearch.yml`:
+```
+path.repo:
+  - /tmp/elasticsearch_snapshots
+```
+
+#### Creating a snapshot
+
+The snapshot name must be unique. Optionally, a list of indexes (can use
+wildcards) and custom metadata can be specified. Indexes that should be omitted
+can be prefixed with a `-` (minus) character.
+
+```
+PUT _snapshot/<repository-name>/<snapshot-name>
+{
+  "indices": ["*movies*","*reviews*", "-*.old"]
+  "metadata":{
+    "reason":"user request",
+    "incident_id":"ID12345",
+    "user":"mkonda"
+  }
+}
+```
+
+#### Restoring a snapshot
+
+```
+PUT _snapshot/<repository-name>/<snapshot-name>/_restore
+```
+
+#### Deleting snapshots
+
+```
+DELETE _snapshot/<repository-name>/<snapshot-name>
+```
+
+#### Automating snapshots
+
+Snapshot lifecycle management is exposed through the `_slm` API endpoint.
+
+Create a lifecycle policy that creates daily snapshots:
+```
+PUT _slm/policy/prod_cluster_daily_backups
+{
+  "name":"<prod_daily_backups-{now/d}>",
+  "schedule": "0 0 0 * * ?",
+  "repository": "es_cluster_snapshot_repository",
+  "config": {
+    "indices":["*movies*", "*reviews*"],
+    "include_global_state": false
+  },
+  "retention":{
+    "Expire_after":"7d"
+  }
+}
+```
+
+Then execute the policy:
+```
+PUT _slm/policy/<policy-name>/_execute
+```
+
+### Advanced settings
+
+Elasticsearch configuration:
+* `config/elasticsearch.yml`: Main configuration file.
+* API endpoint `_cluster/settings`: Update or consult dynamic configuration.
+* `config/jvm.options.d`: Repository where to put files that end with
+    `.options` to tweak JVM options. E.g. `-Xms4g` to set initial heap memory
+    to 4GB, `-Xmx8g` to set maximum heap memory to 8 GB.
+
+### Cluster master nodes
+
+There is a single active master node per cluster.
+
+Responsible for cluster-wide operations, e.g.:
+* Allocating shards
+* Index management
+
+Node eligible to be master nodes have the role `master`.
+
+Master nodes are elected through voting from master-eligible nodes. Election timing
+[parameters](https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/discovery-cluster-formation-settings)
+can be configured.
+
+Master node operations (elections, modifying cluster state) consult a quorum of
+master-eligible nodes, calculated using the formula:
+```
+Minimum number of master-eligible nodes = (number of master-eligible nodes / 2) + 1
+```
+
+To avoid split-brain scenarios, it is recommended to have at least 3 master-eligible nodes.
+
+It is best to have dedicated master nodes (non-data nodes) to ensure master
+operations is not affected by server resources consumption by search queries.
+
 ## Gotchas
 
 When using the asynchronous client, the count of indexed documents may not be

@@ -73,6 +73,14 @@ PRIVILEGES_PASTEBIN = {
     ],
 }
 
+REPOSITORY_NAME = "my_repository"
+REPOSITORY_SETTINGS = {
+    "type": "fs",
+    "settings": {
+        "location": "/tmp/elasticsearch_snapshots"
+    }
+}
+
 
 @asynccontextmanager
 async def get_client(superuser=False):
@@ -91,6 +99,10 @@ async def get_client(superuser=False):
         yield client
     finally:
         await client.close()
+
+
+def pretty_response(resp):
+    print(json.dumps(resp.body, indent=4))
 
 
 async def index_exists(name):
@@ -260,9 +272,19 @@ async def get_alias():
 
 async def node_stats():
     async with get_client(superuser=True) as es:
-        resp = await es.nodes.stats()
-        print(resp["nodes"]["DVsvtgOLQ1WafmO3QiS4WQ"]["http"]["current_open"])
-        print(resp["nodes"]["DVsvtgOLQ1WafmO3QiS4WQ"]["http"]["total_opened"])
+        return await es.nodes.stats()
+
+
+async def node_connections(node_id):
+    resp = await node_stats()
+    print(resp["nodes"]["DVsvtgOLQ1WafmO3QiS4WQ"]["http"]["current_open"])
+    print(resp["nodes"]["DVsvtgOLQ1WafmO3QiS4WQ"]["http"]["total_opened"])
+
+
+async def node_info():
+    async with get_client(superuser=True) as es:
+        resp = await es.nodes.info()
+    pretty_response(resp)
 
 
 async def concurrent():
@@ -270,18 +292,53 @@ async def concurrent():
     await asyncio.gather(*tasks)
 
 
+async def explain_allocation(index, shard, primary=False):
+    async with get_client(superuser=True) as es:
+        resp = await es.cluster.allocation_explain(
+            index=index, shard=shard, primary=primary
+        )
+    pretty_response(resp)
+
+
+async def cat_nodes():
+    async with get_client(superuser=True) as es:
+        resp = await es.cat.nodes()
+        pretty_response(resp)
+
+
+async def create_repository(name, config):
+    async with get_client(superuser=True) as es:
+        resp = await es.snapshot.create_repository(name=name, repository=config)
+    pretty_response(resp)
+
+
+async def get_repository(name):
+    async with get_client(superuser=True) as es:
+        resp = await es.snapshot.get_repository(name=name)
+    pretty_response(resp)
+
+
+async def create_snapshot(repository_name, snapshot_name):
+    async with get_client(superuser=True) as es:
+        resp = await es.snapshot.create(
+            repository=repository_name,
+            snapshot=snapshot_name,
+        )
+    pretty_response(resp)
+
+
+async def put_cluster_settings(persistent=None, transient=None):
+    async with get_client(superuser=True) as es:
+        resp = await es.cluster.put_settings(
+            persistent=persistent,
+            transient=transient,
+        )
+    pretty_response(resp)
+
+
 async def main():
-    await search(
-        "books",
-        aggregations={
-            "author_book_count": {
-                "terms": {
-                    "field": "author.keyword",
-                },
-            },
-        },
-        size=0
-    )
+    settings={"path.repo": ["/tmp/snapshots"]}
+    await put_cluster_settings(persistent=settings)
 
 
 if __name__ == "__main__":
