@@ -506,7 +506,153 @@ the full standard functionality is implemented, see [known
 limitation](https://nightlies.apache.org/flink/flink-docs-release-2.0/docs/dev/table/sql/queries/match_recognize/#known-limitations)
 for details.
 
-See [pattern-recognition]("./examples/pattern-recognition").
+See [pattern-recognition](./examples/pattern-recognition).
+
+#### 3.2.8. User-defined functions
+
+##### 3.2.8.1. Implement and use functions
+
+To create a function, one must use the Table API and build a JAR that contains
+the class that implements the custom function. See the following paragraphs for
+examples, and read the code in
+[examples/user-defined-functions](./examples/user-defined-functions).
+
+It is recommended to use boxed primitives (e.g. `java.lang.Integer` instead of
+`Int`) to support `NULL`.
+
+To use the function in SQL, one must first load the JAR:
+
+```sql
+ADD JAR <jar-path>;
+```
+
+Then create the function from the JAR:
+
+```sql
+CREATE FUNCTION myfunction
+AS '<package>.<function-class-name>'
+LANGUAGE JAVA
+USING JAR '<jar-path>.jar'
+;
+```
+
+Then the function can be called:
+
+```sql
+SELECT myfunction(...);
+```
+
+In the Table API, the function is created and called like this:
+
+```java
+env.createTemporarySystemFunction("SubstringFunction", SubstringFunction.class);
+
+Table mytable = env.fromValues(
+    DataTypes.ROW(
+        DataTypes.FIELD("id", DataTypes.BIGINT()),
+        DataTypes.FIELD("name", DataTypes.STRING())
+    ),
+    ...
+);
+
+Table substring_name = mytable.select(
+    $("id"),
+    call("SubstringFunction", $("name"), 1, 3)
+);
+```
+
+##### 3.2.8.2. Type inference
+
+Flink’s user-defined functions implement an automatic type inference extraction
+that derives data types from the function’s class and its evaluation methods
+via reflection. If this implicit reflective extraction approach is not
+successful, the extraction process can be supported by annotating affected
+parameters, classes, or methods with `@DataTypeHint` and `@FunctionHint`.
+
+The annotation `@DataTypeHint` replaces the default type inference logic of
+function parameters and return types:
+
+```java
+import java.math.BigDecimal;
+import java.time.Instant;
+
+import org.apache.flink.table.annotation.DataTypeHint;
+import org.apache.flink.table.functions.ScalarFunction;
+import org.apache.flink.types.Row;
+
+
+public class TestFunction extends ScalarFunction {
+
+    @DataTypeHint("DECIMAL(12, 3)")
+    public BigDecimal eval(Double a, Double b) {
+        return BigDecimal.valueOf(a + b);
+    }
+```
+
+The annotation `@FunctionHint` is defined at the class level, and is useful
+if one evaluation method should handle multiple data types at the same time.
+
+Users can even customize type inference further by overloading the method
+`getTypeInference()` in the user-defined function class.
+
+##### 3.2.8.3. Scalar functions
+
+```java
+import org.apache.flink.table.functions.ScalarFunction;
+
+
+public class SubstringFunction extends ScalarFunction {
+    public String eval(String s, Integer begin, Integer end) {
+        return s.substring(begin, end);
+    }
+}
+```
+
+`eval` can be overloaded to support different argument types, and can also
+accept variable arguments:
+
+```java
+public class SumFunction extends ScalarFunction {
+    public String eval(String... values) {
+        Integer result = 0;
+        for (String val : values) {
+            result += Integer.valueOf(val);
+        }
+        return result;
+    }
+}
+```
+
+##### 3.2.8.4. Table functions
+
+```java
+src/main/java/com/jonathanschnabel/SplitFunction.java
+package com.jonathanschnabel;
+
+import org.apache.flink.table.annotation.DataTypeHint;
+import org.apache.flink.table.annotation.FunctionHint;
+import org.apache.flink.table.api.*;
+import org.apache.flink.table.functions.TableFunction;
+import org.apache.flink.types.Row;
+import static org.apache.flink.table.api.Expressions.*;
+
+
+@FunctionHint(output = @DataTypeHint("ROW<word STRING, length INT>"))
+public class SplitFunction extends TableFunction<Row> {
+
+  public void eval(String str) {
+    for (String s : str.split(" ")) {
+      collect(Row.of(s, s.length()));
+    }
+  }
+}
+```
+
+This function can be called like this:
+
+```sql
+SELECT * FROM TABLE(split_function('hello how are you?'));
+```
 
 ## 4. Connectors
 
@@ -526,6 +672,19 @@ A primary key and time attribute must be defined on the table.
 Compared to the Kafka connector, the following fields are not allowed:
 * `key.fields`: the key is inferred from the table primary key.
 * `scan.startup.mode`.
+
+### 4.3. Print connector
+
+This connector allows to print records to standard output (i.e. the TaskManager
+`stdout`):
+
+```sql
+CREATE TABLE print_table (
+    ...
+) WITH (
+    'connector' = 'print'
+);
+```
 
 ## 5. Gotchas
 
