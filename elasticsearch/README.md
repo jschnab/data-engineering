@@ -2573,6 +2573,95 @@ To avoid split-brain scenarios, it is recommended to have at least 3 master-elig
 It is best to have dedicated master nodes (non-data nodes) to ensure master
 operations is not affected by server resources consumption by search queries.
 
+## Performance and troubleshooting
+
+### Search performance
+
+Allocate at least half the node memory to the heap to avoid too frequent
+garbage collection, use the JVM option `-Xmx`.
+
+Use local disks instead of network-attached storage for fast disk access.
+
+Shard sizes appropriately to avoid too much inter-node communication.
+
+Use as fewer fields as possible, e.g. combine fields at indexing time with the
+`copy_to` attribute and use `match` against the common field instead of
+`multi_match` (no need to specify the common field when indexing documents):
+```
+PUT <index-name>
+{
+  "mappings": {
+    "properties": {
+      "<field-1>":{
+        "type": "text",
+        "copy_to": "<common-field>"
+      },
+      "<field-2>":{
+        "type": "text",
+        "copy_to": "<common-field>"
+      },
+      "<common-field>":{
+        "type": "text"
+      }
+    }
+  }
+}
+```
+
+Use `keyword`-type fields when appropriate to avoid unnecessary normalization
+of query parameters.
+
+### Indexing performance
+
+Use Elasticsearch-generated document identifiers if possible, to avoid the
+overhead of checking existing document IDs during indexing. Downside is risk of
+document duplication.
+
+Use bulk indexing when appropriate.
+
+Increase the index refresh rate whenever appropriate (default is 1 second):
+```
+PUT <index-name>/_settings
+{
+  "index":{
+    "refresh_interval":"1m"
+  }
+}
+```
+
+During large indexing loads, do:
+* use bulk indexing
+* disable refresh (re-enable it after indexing)
+* disable replication (re-enable after indexing)
+
+See
+[documentation](https://www.elastic.co/docs/deploy-manage/production-guidance/optimize-performance/indexing-speed)
+for more details.
+
+Disk usage thresholds:
+* low disk watermark is disk usage (default 85 %) at which
+    Elasticsearch stops assigning replicas to the node
+* high disk watermark is disk usage (default 90 %) at which
+    Elasticsearch tries to re-allocate shards to another node
+* flood-stage watermark is disk usage (default 95 %) at which indexes are made
+    read-only
+
+Circuit breakers are mechanism that fail client requests when certain
+conditions are met:
+* parent: total memory that can be used by circuit breakers (defaults to 70 %
+    heap memory if `indices.breaker.total.use_real_memory=true` else 95 %).
+* in-flight requests: memory used by in-flight requests (maximum is 100 %).
+* request: Memory used by a single request
+* field data: maximum memory used by fields cache
+* script compilation: maximum number of inline script compilations per time
+    period
+* regex: limits regular expression complexity
+
+Check circuit breaker status with:
+```
+GET _nodes/stats/breaker
+```
+
 ## Gotchas
 
 When using the asynchronous client, the count of indexed documents may not be
