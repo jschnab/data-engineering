@@ -1,0 +1,4 @@
+pastebin:
+  indices:
+    - names: ["pastebin-texts"]
+      privileges: ["read", "write"]
