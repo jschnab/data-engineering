@@ -133,7 +133,7 @@ CREATE TABLE mytable (
 ```
 
 See the example
-[temporal-join-event-time]("./examples/temporal-join-event-time") for an
+[temporal-join-event-time](./examples/temporal-join-event-time) for an
 example use of a versioned table (currency) with the Upser-Kafka connector.
 
 ## 2. Architecture
@@ -278,7 +278,7 @@ original table fields plus three fields: `window_start`, `window_end`, and
 minus 1 millisecond).
 
 Query examples are in
-[window-table-valued-functions]("./examples/window-table-valued-functions").
+[window-table-valued-functions](./examples/window-table-valued-functions).
 
 #### 3.2.2. Joins
 
@@ -287,7 +287,7 @@ Query examples are in
 These are joins restricted by a time constraints that bounds a time attribute
 on both join sides.
 
-The example [interval-joins]("./examples/interval-joins") shows how to
+The example [interval-joins](./examples/interval-joins) shows how to
 calculate late shipments (shipped more than four hours after the order):
 
 ```sql
@@ -306,7 +306,7 @@ side), allowing record enrichment with changing metadata at a certain point
 in time. The versioned table retains the value of each record across time, so
 it allows joins as of a certain point in time.
 
-The example [temporal-join-event-time]("./examples/temporal-join-event-time")
+The example [temporal-join-event-time](./examples/temporal-join-event-time)
 shows how to calculate order price given changing currency conversion rates.
 
 We define a versioned currency table with the Upsert-Kafka connector:
@@ -430,7 +430,7 @@ A Lookup Join is used to enrich a table with data from a dimension table. The
 join requires one table to have a processing time attribute and the other
 table to be backed by a lookup source connector.
 
-The example [lookup-join]("./examples/lookup-join")
+The example [lookup-join](./examples/lookup-join)
 shows how to enrich order data with customer information.
 
 #### 3.2.3. Group aggregation
@@ -440,7 +440,7 @@ etc. are supported with grouping sets (rollup, cube) are supported.
 
 All rows in a group are aggregated into a single one.
 
-See [group-aggregation]("./examples/group-aggregation") for examples.
+See [group-aggregation](./examples/group-aggregation) for examples.
 
 Flink stores the state required to perform the aggregation over an unbouded
 stream of records. State can grow very large, and you can control how much
@@ -479,21 +479,21 @@ ROWS BETWEEN 10 PRECEDING AND CURRENT ROW
 
 Only `CURRENT ROW` is supported for the upper boundary.
 
-See [over-aggregation]("./examples/over-aggregation").
+See [over-aggregation](./examples/over-aggregation).
 
 #### 3.2.5. Top N
 
 By combining `ROW_NUMBER() OVER()` aggregation with a filter query (`WHERE` or
 `QUALIFY`), one can perform top N queries.
 
-See [topN]("./examples/topN").
+See [topN](./examples/topN).
 
 #### 3.2.6. Deduplication
 
 Deduplication is achieved with a `ROW_NUMBER() OVER()` query and a filter to
 select the first row. This is similar to top N queries with a specific filter.
 
-See [deduplication]("./examples/deduplication").
+See [deduplication](./examples/deduplication).
 
 #### 3.2.7. Pattern recognition
 
