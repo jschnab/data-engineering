@@ -1,7 +1,7 @@
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
 metadata:
-  name: elasticsearch-cluster
+  name: es1
   namespace: elasticsearch
   labels:
     app.kubernetes.io/name: elasticsearch
@@ -10,24 +10,17 @@ spec:
   version: 9.1.3
   nodeSets:
   - name: elasticsearch-nodeset
-    count: 1
+    count: 3
     podTemplate:
       spec:
         containers:
           - name: elasticsearch
             env:
-            - name: "discovery.type"
-              value: "single-node"
-            volumeMounts:
-            - name: roles
-              mountPath: /usr/share/elasticsearch/config/roles.yml
-              subPath: roles.yml
-            - name: roles
-              mountPath: /usr/share/elasticsearch/config/users_roles
-              subPath: users_roles
+            - name: ES_JAVA_OPTS
+              value: "-Xms256m -Xmx256m"
             resources:
               requests:
-                memory: 2Gi
+                memory: 1Gi
         volumes:
         - name: roles
           configMap:

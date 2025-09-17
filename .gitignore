@@ -3,3 +3,5 @@
 .venv
 target
 elasticsearch/texts/
+crds.yaml
+operator.yaml
