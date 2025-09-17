@@ -2738,7 +2738,7 @@ Create an application user:
 ```
 
 Create a role with limited privileges by modifying the file
-`/usr/share/elasticsearch/config/roles`:
+`/usr/share/elasticsearch/config/roles.yml`:
 ```
 <role-name>:
     indices:
