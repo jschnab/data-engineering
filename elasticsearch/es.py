@@ -226,7 +226,7 @@ async def search(
     """
     if aggs is not None:
         aggregations = aggs
-    async with get_client(superuser=True) as es:
+    async with get_client() as es:
         try:
             resp = await es.search(
                 index=index,
@@ -352,6 +352,12 @@ async def put_cluster_settings(persistent=None, transient=None):
     pretty_response(resp)
 
 
+async def get_cluster_settings():
+    async with get_client(superuser=True) as es:
+        resp = await es.cluster.get_settings()
+    pretty_response(resp)
+
+
 async def put_role(name, indices):
     async with get_client(superuser=True) as es:
         resp = await es.security.put_role(
@@ -378,8 +384,11 @@ async def get_user(name):
 
 
 async def main():
-    await put_cluster_settings(
-        persistent={"search.allow_expensive_queries": False}
+    await search(
+        ALIAS_INDEX_TEXTS,
+        q="created_at:[2025-01-01 TO 2025-02-01]",
+        source=["title", "created_at"],
+        highlight={"fields": {"title": {}, "body": {}}},
     )
 
 
