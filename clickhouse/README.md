@@ -234,3 +234,25 @@ lightweight operation.
 Partitions can be deleted with `ALTER TABLE DROP PARTITION ...` queries.
 
 ## Schema design
+
+Clickhouse is optimized for reading Parquet files and can read tens of millions
+of records per second from Parquet files stored in S3.
+
+### Optimizing data types
+
+Choosing the right data types allow Clickhouse to compress columns better,
+leading to faster queries.
+
+Avoid nullable columns because they create an additional column. E.g. for
+numerical values use 0, for string an empty string, etc.
+
+Use the smallest possible size for numeric types, as well as temporal types.
+
+Use LowCardinality and FixedString types if possible.
+
+Enums allow data validation at insert time, and allow to exploit natural
+ordering of non-numeric values.
+
+### Ordering key
+
+
