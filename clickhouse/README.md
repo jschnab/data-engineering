@@ -10,6 +10,8 @@ C++.
 
 ## Concepts
 
+https://clickhouse.com/docs/managing-data/core-concepts
+
 ### Parts
 
 When data is loaded into Clickhouse, records are grouped into **parts**. These
@@ -168,6 +170,8 @@ Operation modes:
 Clickhouse is not optimized for row updates, and these operations need to be
 designed carefully to avoid potential high I/O.
 
+https://clickhouse.com/docs/updating-data
+
 ### Update mutation
 
 ```
@@ -218,6 +222,8 @@ to perform an update. It's unclear which use cases this serves.
 
 ## Delete data
 
+https://clickhouse.com/docs/managing-data/deleting-data/overview
+
 Deleting data follows similar tradeoffs between consistency and performance
 compared to updates.
 
@@ -233,12 +239,16 @@ lightweight operation.
 
 Partitions can be deleted with `ALTER TABLE DROP PARTITION ...` queries.
 
-## Schema design
+## Data modeling
+
+https://clickhouse.com/docs/data-modeling/overview
+
+### Schema design
 
 Clickhouse is optimized for reading Parquet files and can read tens of millions
 of records per second from Parquet files stored in S3.
 
-### Optimizing data types
+#### Optimizing data types
 
 Choosing the right data types allow Clickhouse to compress columns better,
 leading to faster queries.
@@ -253,6 +263,176 @@ Use LowCardinality and FixedString types if possible.
 Enums allow data validation at insert time, and allow to exploit natural
 ordering of non-numeric values.
 
-### Ordering key
+#### Ordering key
+
+The ordering key is specified by the `ORDER BY` clause when creating a table,
+and can be composed of several columns.
+
+The ordering key is the primary key of the sparse index associated with a part,
+and determine how rows are sorted within a part. This affects column
+compression and therefore query speed (more compression = faster queries).
+
+Guidelines to select ordering keys:
+* 5 keys maximum is sufficient* 5 keys maximum is sufficient* 5 keys maximum is
+    sufficient* 5 keys maximum is sufficient* 5 keys maximum is sufficient* 5
+    keys maximum is sufficient* 5 keys maximum is sufficient* 5 keys maximum is
+    sufficient* 5 keys maximum is sufficient
+* should align with common query filters, so that more rows can be skipped
+    during queries using these filters
+* prefer columns that are correlated with other columns, in order to maximize
+    compression of all columns
+* organize key columns by order of increasing cardinality
+
+### Dictionaries
+
+Dictionaries are in-memory key-value representations of data optimized for low
+query latency. They are useful for:
+* remove the need for joins
+* enrich data during ingestion (no need to do it at query time anymore)
+
+A dictionary is created with the `CREATE DICTIONARY` query.
+
+The `dictGet('<dict-name>', '<key-name>', <query-value>)` is used to query a
+dictionary.
+
+### Materialized views
+
+Shift some cost of computation from query time to insert time. Can be
+'incremental' or 'refreshable' (need to be periodically executed).
+
+Incremental materialized views are not like in relational databases, they are
+triggers that query data as it is inserted in a source table, then transform it
+(or aggregate, filter, etc.) and insert it in a target table. This saves time
+during queries, but increases ingestion latency. The target table is updated
+in real time, without a need for periodic execution. 
+
+Incremental materialized views are created with:
+```
+CREATE MATERIALIZED VIEW <view-name> TO <target-table> AS
+<query-from-source-table>
+```
+
+The materialized view generally takes advantage of a particular table engine to
+aggregate rows during asynchronous merges. Therefore recently inserted rows may
+not be aggregated yet, an issue that can be solved using the `FINAL` clause in
+the `SELECT` query, or by performing the usual aggregation in the `SELECT`
+query.
+
+Tip: for maximum performance, the `GROUP BY` clause should use keys from the
+`ORDER BY` clause of the `CREATE TABLE` statement.
+
+To avoid storing raw data, the table where rows are inserted can use the `Null`
+engine. Inserted data will only populate the target table of the materialized
+view.
+
+Materialized views can use `JOIN`s, but the view will only be triggered when
+the left-most table of the join is updated. Dictionaries may be preferrable to
+joins for better performance.
+
+Refreshable materialized views are another type of views that differs from
+incremental materialized view on two aspects:
+* they completely replace the target table with query results (unless `APPEND`
+    is added to the view definition, in which case rows are appended to the
+    table)
+* they run on schedule (and can also be triggered manually)
+
+The statement to create a refreshable materialized view is:
+```
+CREATE MATERIALIZED VIEW <view-name> REFRESH EVERY <time-value> <time-unit>
+[APPEND] TO <target-table> AS
+```
+
+### Projections
+
+Projections are a reordering of table rows, and therefore have a different
+primary index. This helps speed up some queries that take advantage of this
+new data ordering. Projections are automatically kept in sync with the original
+table.
+
+Compared to the original table, projections can have:
+* a different primary index
+* pre-computed aggregates
+
+When a query is run, Clickhouse automatically selects the projection that will
+read the least amount of data, and therefore yield the fastest query.
+
+There is two ways to define a projection:
+* store full columns (lots of additional storage but the fastest)
+* store only a primary index with parts offsets, which is basically an index
+    (least amount of data stored, but more I/O and slower queries)
+
+Limitations:
+* does not allow a different TTL than the original table
+* lightweight updates and deletes are not supported
+* projections cannot be chained like materialized views
+* projections cannot be joined
+* projections do not support `WHERE` clauses
+
+Statement to create a projection:
+```
+ALTER TABLE <table-name>
+ADD PROJECTION <projection-name>
+(
+    SELECT *
+    ORDER BY <sorting-key-columns>
+    [GROUP BY ...]
+)
+```
+
+If there is an aggregation in the projection, then the projection table storage
+uses the `AggregatingMergeTree` engine.
+
+Then one must materialize the projection:
+```
+ALTER TABLE <table-name> MATERIALIZE PROJECTION <projection-name>
+```
+
+A projection based on part offsets is created like this:
+```
+CREATE TABLE <table-name> (
+    PROJECTION <projection-name>
+        (
+            SELECT _part_offset ORDER BY <sorting-key-columns>
+        ),
+        ...
+)
+ENGINE = ...
+```
+
+Projections VS materialized views:
+* projections update asynchronously, (incremental) materialized views update
+    synchronously
+* projections are queried transparently when a user queries the source table,
+    materialized views are explicitly queried
+* projections are not compatible with deletes (unless the parameter
+    `lightweight_mutation_projection_mode` is used), and materialized views do
+    not react to deletes or updates (only to inserts)
+* projections cannot be defined using joins, while materialized views can (only
+    the leftmost part of the join triggers a materialization)
+* projections cannot be defined with `WHERE` clauses, materialized views can
+* projections cannot be chained, while materialized views can
+* projections are only available for merge tree engines, while materialized
+    views are compatible with a broad list of table engines
+* for projections insert failures do not lead to data loss, while a
+    materialized view insert failure leads to target table data loss
+* projections have lower operational burden
+* projections do not work with `FINAL` queries, while materialized views do
+
+### Compression
+
+Algorithms used for column compression can be controlled when a table is
+created:
+```
+CREATE TABLE <table-name> (
+    <column-name> CODEC(<algo-1>, ...)
+    ...
+)
+...
+```
+
+E.g. `ZSTD` works well in most cases, `Delta` works well for monotonically
+increasing values. These can be combined, and `ZSTD` compresses well data
+already compressed with `Delta`.
+
 
 
