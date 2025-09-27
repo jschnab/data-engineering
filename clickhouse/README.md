@@ -434,5 +434,60 @@ E.g. `ZSTD` works well in most cases, `Delta` works well for monotonically
 increasing values. These can be combined, and `ZSTD` compresses well data
 already compressed with `Delta`.
 
+## Advanced features
+
+https://clickhouse.com/docs/guides/developer/overview
+
+### Dynamic column selection
+
+Can select columns based on regular expression, and exclude some of them:
+```
+FROM <table>
+SELECT COLUMNS('<regex-1>') [COLUMNS('<regex-2>'), ...] EXCEPT(<col-1)
+```
+
+
+Can apply functions on all columns, e.g. `max`, `avg`, etc. and functions can
+be chained:
+```
+FROM <table>
+SELECT COLUMNS('<regex>') APPLY(<func-1>) [APPLY(<func-2>), ...]
+```
+
+Can adjust some columns and leave the other untouched:
+```
+FROM <table>
+SELECT
+    COLUMNS('<regex>')
+    REPLACE(
+        <col-1> * 2 AS <col-1>
+        , <col-2> / 1.5 AS <col-2>
+    )
+APPLY(<func-1>)
+```
+
+### Merge tables
+
+A merge table does not store data but allows to query from multiple tables
+simultaneously by taking a union of table columns and deriving common types
+(for columns that have different types).
+
+```
+SELECT <cols>
+FROM merge(['db_name',] 'tables_regexp')
+```
+
+### Query dialects
+
+`clickhouse` is the default query dialect, but we can also use Pipeline
+Relational Query Language ([PRQL](https://prql-lang.org/)) or
+[Kusto](https://learn.microsoft.com/en-us/kusto/query/?view=azure-data-explorer&preserve-view=true).
+
+```
+SET prql
+SET kusto
+```
+
+### Cascading materialized views
 
 
