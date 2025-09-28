@@ -490,4 +490,191 @@ SET kusto
 
 ### Cascading materialized views
 
+A cascading materialized view uses another materialized view as the source.
+
+This can be useful when hierarchical transformations need to be done and we
+want to perform them at data insertion time to make `SELECT` queries faster.
+E.g. one materialized view aggregates data per month from raw data, and a
+cascading materialized view aggregates the first materialized view output per
+year.
+
+Also, multiple materialized views can have the same target table (similar to a
+`UNION ALL` logic).
+
+### Debugging memory issues
+
+Query the table `system.processes` and columns `peak_memory_usage`,
+`memory_usage`.
+
+List metrics for memory usage in table `system.asynchronous_metrics`, columns
+like `%Cach%`, `%Mem%`.
+
+Column `memory_usage` from table `system.merges`.
+
+Columns `data_uncompressed_bytes` (if `part_type` = `InMemory`),
+`primary_key_bytes_in_memory`, `primary_key_bytes_in_memory_allocated`,
+`index_granularity_bytes_in_memory`,
+`index_granularity_bytes_in_memory_allocated` from table `system.parts`.
+
+### Deduplicating inserts on retries
+
+An insert can be successful on the server side but the client did not receive
+confirmation, so a retry may lead to duplicate inserts.
+
+When inserting data into `*MergeTree` tables, each block is assigned a
+`block_id` which is a hash of data in the block, and used as a unique key for
+the insert operation. When the same `block_id` is found in the deduplication
+log, it is considered a duplicate and not inserted into the table.
+
+The parameter `non_replicated_deduplication_window` (default is 0) determines
+how many of the most recent blocks are examined to deduplicate blocks on
+insert.
+
+### Deduplication strategies
+
+Unlinke an OLTP database, Clickhouse inserts data in immutable blocks and does
+not check existing rows for incoming row sorting keys when inserting data. Data
+with the same sorting key is **eventually** deduplicated at merge time,
+therefore a table can have duplicates and `SELECT` queries need to take this
+into account.
+
+Deduplication can be implemented using two strategies:
+* use `ReplacingMergeTree` to perform upserts at merge time
+* use `CollapsingMergeTree` to have simpler queries at the cost of more complex
+    implementation
+
+#### Using `ReplacingMergeTree`
+
+`SELECT` queries can use `FINAL` to remove duplicates, but query performance
+can suffer for large tables. Sometimes an aggregate function with a `GROUP BY`
+query can have better performance e.g. if we know the updated value is always
+increasing (count of web page views), we can use `max`.
+
+#### Using `CollapsingMergeTree`
+
+Say we want to count view on Hacker News articles, we have the following table:
+```
+CREATE TABLE hackernews_views (
+    id UInt32,
+    author String,
+    views UInt64,
+    sign Int8
+)
+ENGINE = CollapsingMergeTree(sign)
+PRIMARY KEY (id, author)
+```
+
+The `sign` column (name is arbitrary) is either `-1` or `+1`. `-1` indicates
+that the previous row should be cancelled. The last row with `+1` is included
+in query results.
+
+###  Filling gaps in time-series data
+
+When aggregating time-series data by time, if time intervals have no data they
+do not generate records. The `WITH FILL` clause generates a record for such
+empty intervals:
+```
+SELECT
+    toStartOfInterval(timestamp, toIntervalMillisecond(100)) AS bucket,
+    count() AS count
+FROM <time-series-table>
+WHERE (timestamp >= xxx AND (timestamp <= yyy)
+GROUP BY ALL
+ORDER BY bucket ASC
+WITH FILL
+STEP toIntervalMillisecond(100);
+```
+
+There may be missing records at the beginning and end of the aggregated
+intervals, which can be solved with `WITH FILL FROM <timestamp>` (inclusive)
+and `WITH FILL TO <timestamp>` (exclusive). Both `FROM` and `TO` are optional.
+
+When we make a cumulative sum, we need to use `INTERPOLATE` to ensure there are
+values for time buckets where there are no records (the `bar(column, min, max,
+width)` function is just a bonus):
+```
+SELECT
+    toStartOfInterval(timestamp, toIntervalMillisecond(100)) AS bucket,
+    count() AS count,
+    sum(count) OVER (ORDER BY bucket) AS cumulative,
+    bar(cumulative, 0, 10, 10) AS barChart
+FROM MidJourney.images
+WHERE (timestamp >= {start:String}) AND (timestamp <= {end:String})
+GROUP BY ALL
+ORDER BY bucket ASC
+WITH FILL
+FROM toDateTime64({start:String}, 3)
+TO toDateTime64({end:String}, 3) + INTERVAL 100 millisecond
+STEP toIntervalMillisecond(100)
+INTERPOLATE (cumulative, barChart);
+```
+
+## Transactional support
+
+Inserts into a single partition and table using the `*MergeTree` engine are
+kinda ACID:
+* atomic (a full block is created with inserted rows or not created if there is
+    an error)
+* consistent: table constraints are respected
+* isolated: concurrent clients do not see partial blocks, clients inside of
+    another transaction have snapshot isolation consistency, while client
+    outside of it have read uncommitted consistency
+* durable: a replica (or more, as defined by `insert_quorum`, default 0) writes
+    data to the filesystem before answering to the client, but does not flush
+    to disk (controlled by `fsync_after_insert`, default false)
+
+An insert into a `Distributed` table is not transactional as a whole, but
+inserts into each shard is transactional.
+
+## Time to live (TTL)
+
+Use cases:
+* removing old rows or columns
+* move data between storage tiers (not applicable for cloud)
+* data rollup (aggregations)
+
+TTL can be defined on columns or tables (this deletes column data based on the
+value or the `timestamp` column):
+```
+CREATE TABLE example1 (
+   timestamp DateTime,
+   x UInt32 TTL timestamp + INTERVAL 1 MONTH,
+   y String TTL timestamp + INTERVAL 1 DAY,
+   z String
+)
+ENGINE = MergeTree
+ORDER BY tuple()
+```
+
+TTL is applied during merges, which happen at unscheduled times. Merges can be
+forced after a timeout with the parameter `merge_with_ttl_timeout` (default 4
+hours).
+
+The TTL clause can rollup rows when deleting them (basically a kind of data
+compaction) by adding a `GROUP BY` clause in the TTL:
+```
+CREATE TABLE (
+    <col-name-1> ... DEFAULT ...
+)
+...
+PRIMATY KEY <pk>
+TTL timestamp + INTERVAL 1 DAY
+    GROUP BY <pk>, toStartOfDay(timestamp)
+    SET
+        <col-name-1> = max(<col-name-2>)
+```
+
+The `GROUP BY` must be a prefix of the primary key, and columns set by the TTL
+must have a default value.
+
+## Query analyzer
+
+![Query execution](query-execution.png)
+
+
+## Gotchas
+
+When using an aggregating engine (e.g. `AggregatingMergeTree`), special
+aggregation query functions  must be used, e.g. `sumMerge`, `avgMerge`, etc.
+
 
