@@ -671,6 +671,19 @@ must have a default value.
 
 ![Query execution](query-execution.png)
 
+## Joins
+
+Tips for performance:
+* Use denormalization, dictionaries, and materialized views to avoid performing
+    joins.
+* Aim at a maximum of 4 joins in a query.
+* Joins are not reordered, so ensure that the smallest table is on the right
+    side of the join to ensure the lowest memory overhead.
+* Try using `WHERE ... IN ...` instead of joins when possible.
+* Apply filters to sub-clauses to minimize the size of joined data.
+
+There are many join algorithms that can be used, depending on whether
+performance or memory usage should be optimized.
 
 ## Gotchas
 
