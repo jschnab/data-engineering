@@ -2707,6 +2707,13 @@ type from the first element.
 Term-level queries and keyword fields are not analyzed, so be careful when
 issuing term-level queries and when querying keyword fields.
 
+Configuration has a notion of 'file realm' and 'native realm', which is
+important when managing authentication and authorization configuration (users,
+roles, etc.). The file realm is modified with node CLI scripts (in
+/usr/share/elasticsearch/bin folder), while the API realm is modified with APIs
+(Kibana, Python client, etc.). Both realms do not talk to each other. Only the
+native realm is replicated across nodes.
+
 ## Docker setup
 
 Run the Elasticsearch container:
@@ -2738,7 +2745,7 @@ Create an application user:
 ```
 
 Create a role with limited privileges by modifying the file
-`/usr/share/elasticsearch/config/roles`:
+`/usr/share/elasticsearch/config/roles.yml`:
 ```
 <role-name>:
     indices:

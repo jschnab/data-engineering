@@ -45,6 +45,9 @@ MAPPINGS_INDEX_TEXTS = {
         "body": {
             "type": "text",
         },
+        "created_at": {
+            "type": "date",
+        },
     }
 }
 
@@ -80,6 +83,13 @@ REPOSITORY_SETTINGS = {
         "location": "/tmp/elasticsearch_snapshots"
     }
 }
+
+PASTEBIN_ROLE_INDICES = [
+    {
+        "names": ["pastebin-texts"],
+        "privileges": ["read", "write"],
+    }
+]
 
 
 @asynccontextmanager
@@ -158,6 +168,12 @@ async def index_texts():
                 "body": body,
             }
             await index_doc(index=ALIAS_INDEX_TEXTS, document=document)
+
+
+async def delete_doc(index, doc_id):
+    async with get_client() as es:
+        resp = await es.delete(index=index, id=doc_id)
+    pretty_response(resp)
 
 
 async def count_documents(index):
@@ -336,9 +352,35 @@ async def put_cluster_settings(persistent=None, transient=None):
     pretty_response(resp)
 
 
+async def put_role(name, indices):
+    async with get_client(superuser=True) as es:
+        resp = await es.security.put_role(
+            name=name,
+            indices=indices,
+        )
+    pretty_response(resp)
+
+
+async def put_user(name, password, roles):
+    async with get_client(superuser=True) as es:
+        resp = await es.security.put_user(
+            username=name,
+            password=password,
+            roles=roles,
+        )
+    pretty_response(resp)
+
+
+async def get_user(name):
+    async with get_client(superuser=True) as es:
+        resp = await es.security.get_user(username=name)
+    pretty_response(resp)
+
+
 async def main():
-    settings={"path.repo": ["/tmp/snapshots"]}
-    await put_cluster_settings(persistent=settings)
+    await put_cluster_settings(
+        persistent={"search.allow_expensive_queries": False}
+    )
 
 
 if __name__ == "__main__":

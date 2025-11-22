@@ -1,0 +1,43 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: es1
+  namespace: elasticsearch
+  labels:
+    app.kubernetes.io/name: elasticsearch
+    app.kubernetes.io/component: database
+spec:
+  version: 9.1.3
+  nodeSets:
+  - name: elasticsearch-nodeset
+    count: 3
+    podTemplate:
+      spec:
+        containers:
+          - name: elasticsearch
+            env:
+            - name: ES_JAVA_OPTS
+              value: "-Xms256m -Xmx256m"
+            resources:
+              requests:
+                memory: 1Gi
+        volumes:
+        - name: roles
+          configMap:
+            name: roles
+    config:
+      node.roles: ["master", "data"]
+      node.store.allow_mmap: false  # otherwise need to set Linux kernel setting vm.max_map_count=262144
+    volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-data
+        labels:
+          app.kubernetes.io/name: elasticsearch
+          app.kubernetes.io/component: database
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: sc-elasticsearch-data
